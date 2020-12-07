@@ -5,13 +5,15 @@ PolyOrigin is a package for haplotype reconstruction in connected polyploid F1
 populations. See also: [`polyOrigin`](@ref), [`polyOrigin!`](@ref).
 """
 module PolyOrigin
-# add Revise DataFrames CSV Combinatorics DataStructures
-# add Distributions LightGraphs Dates Plots Documenter
-using LinearAlgebra, SparseArrays, Random, StatsBase, Statistics
-using Pkg, DelimitedFiles, Printf,Serialization
-using DataFrames, CSV, Combinatorics, Dates
-using DataStructures, Distributions
-using Distributed
+
+# add Revise Documenter DocumenterTools
+# add DataFrames CSV Combinatorics StatsBase
+# add DataStructures Distributions Distributed
+# add LightGraphs GraphRecipes Plots
+using LinearAlgebra, SparseArrays, Random, Statistics
+using Pkg, DelimitedFiles, Printf,Serialization, Dates
+using DataFrames, CSV, Combinatorics, StatsBase
+using DataStructures, Distributions, Distributed
 using LightGraphs, GraphRecipes, Plots; gr()
 
 export
