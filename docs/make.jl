@@ -1,6 +1,6 @@
-# using Revise
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__,".."))
+using Revise
+using Pkg
+Pkg.activate(joinpath(@__DIR__,".."))
 using PolyOrigin
 using Plots
 using Documenter
@@ -15,14 +15,14 @@ makedocs(
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", "false") == "true",
         prettyurls=true,
-        canonical="https://chaozhi.github.io/PolyOrigin.jl",
-        assets=String[],
+        canonical="https://chaozhi.github.io/PolyOrigin.jl",    
     ),
     pages = [
         "Home" => "index.md", "Manual" => Any[
             "0 Get started" => "man/0_get_started.md",
             "1 Prepare input" => "man/1_prepare_input.md",
             "2 Run polyOrigin" => "man/2_run_polyOrigin.md",
+            "3 Examples" => "man/3_examples.md",
         ],
         "Library" => Any[
             "Public" => "lib/public.md",

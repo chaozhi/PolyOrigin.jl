@@ -27,6 +27,7 @@ see [`readPolyGeno`](@ref) for the requirements of `genofile` and `pedfile`.
 marker locations are in unit of base pair(bp).
 
 `recomrate::Real=1`: recombination rate in unit of 1 cM/Mbp (centiMorgan per million base pair).
+Valid only if `isphysmap=true`.
 
 see keyargs in polyOrigin!(polygeno::PolyGeno, keyargs...)
 
@@ -34,24 +35,19 @@ see keyargs in polyOrigin!(polygeno::PolyGeno, keyargs...)
 
 `outstem.log`: log file saves messages that were printed on console.
 
-`outstem_postdoseprob.csv`: same as the input geno file, except that
-the parent genotypes are phased and the offspring genotypes are given by
-the posterior probabilities of dosage.
+`outstem_maprefined.csv`: same as the input genofile, except that input marker map is refined.
 
-`outstem_parentphased.csv`: same as the input geno file, except that
-the parent genotypes are phased.
+`outstem_parentphased.csv`: same as the input genofile, except that parental genotypes are phased.
 
 `outstem_parentphased_corrected.csv`: parented genotypes are further corrected.
 
-`outstem_polyancestry.csv`: saves the returned polyancestry. See
-[`savePolyAncestry`](@ref).
+`outstem_polyancestry.csv`: saves the returned polyancestry. See [`savePolyAncestry`](@ref).
 
 `outstem_genoprob.csv`: a concise version of the above file, including genetic map,
-phased parental genotypes, and posterior genotype probabilities. See [`savegenoprob`](@ref).
+phased parental genotypes, and posterior origin-genotype probabilities. See [`savegenoprob`](@ref).
 
-Here `outstem_postdoseprob.csv`, `outstem_parentphased.csv`,
-or `outstem_parentphased_corrected.csv` can be iteratively used as the input genofiel,
-and the step of parental phasing will be skipped.
+`outstem_postdoseprob.csv`: same as the input genofile, except that  parent genotypes
+are phased and offspring genotypes are given by the posterior dose probabilities.
 
 """
 function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
@@ -176,7 +172,7 @@ polygeno from inputfiles.
 
 # Positional arguments
 
-`polygeno::PolyGeno`:  a struct type storing genotypic data and pedigree info.
+`polygeno::PolyGeno`:  a struct storing genotypic data and pedigree info.
 
 # Keyword arguments
 
@@ -185,7 +181,7 @@ polygeno from inputfiles.
 `seqerr::Real=0.001`: sequencing read error probability for GBS data.
 
 `chrpairing_phase::Integer=22`: chromosome pairing in parental phasing, with 22 being only
-bivalent formations and 44 being bi- and quadri-valent formations.
+bivalent formations and 44 being bivalent and quadrivalent formations.
 
 `chrpairing::Integer=44`: chromosome pairing in offspring decoding, with 22 being only
 bivalent formations and 44 being bivalent and quadrivalent formations.
@@ -208,25 +204,25 @@ within the chromosome are deleted.
 `maxstuck::Integer=5`: the max number of consecutive iterations that are rejected
 in a phasing run.
 
-`maxiter::Integer=30`: the max number of iterations in a phasing run."
+`maxiter::Integer=30`: the max number of iterations in a phasing run.
 
-`minrun::Integer=3`: if the min number of phasing runs that are at the same local maximimum or
-have the same parental phases reaches minrun, phasing algorithm will stop before reaching the maxrun.
+`minrun::Integer=3`: if the number of phasing runs having the same parental phases
+reaches minrun, phasing algorithm will stop before reaching the maxrun.
 
 `maxrun::Integer=10`: the max number of phasing runs.
 
 `byparent::Union{Nothing,Bool}=nothing`: if true, update parental phases
- parent by parent; if false, update parental phases one subpopulation by subpopulation.
- The nothing denotes that it is true if a connected component is a simple F1 cross,
+parent by parent; if false, update parental phases one subpopulation by subpopulation.
+The nothing denotes that it is true if a connected component is a single F1 cross,
 and false otherwise.
 
 `byneighbor::Union{Nothing,Bool}=nothing`: if ture, udpate the combination of bivalent
 or multivalents in parents by their neighbors; if false, consider all the possible combinations.
-The nothing denotes thtat it is true if max ploidy>=6, and false otherwise.
+The nothing denotes that it is true if max ploidy>=6, and false otherwise.
 
 `refhapfile::Union{Nothing,AbstractString} = nothing`: reference haplotype file
 for setting absolute parental phases. It has the same format as the input genofile,
-except that parental genotypes are phased and offspring genotypes are ignored if they exist.
+except that parental genotypes are phased and offspring genotypes are ignored if exist.
 
 `correctthreshold::AbstractFloat=0.15`: a candidate marker is selected for
 parental error correction if the fraction of offspring genotypic error >= correctthreshold.
@@ -248,7 +244,7 @@ parental error correction if the fraction of offspring genotypic error >= correc
 rates > maxepsilon.
 
 `skeletonsize::Integer=50`: the number of markers in the skeleton map that is used
-to reduce map length inflation by subsampling markers.
+to re-scale inter-map distances.
 
 `missingstring::AbstractString="NA"`: string code for missing value.
 

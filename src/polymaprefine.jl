@@ -862,12 +862,12 @@ end
 """
     polyMapRefine!(phasedgeno::PolyGeno, keyargs...)
 
-performs marker map refinning for phasedgeno with phased parent genotypes. Modifiy
-phasedgeno.markermap into a refined genetic map.
+performs marker map refinning for phasedgeno with phased parent genotypes.
+    Modifies phasedgeno.markermap into a refined genetic map.
 
 # Positional arguments
 
-`phasedgeno::PolyGeno`: a struct type that stores genotypic data and pedigree info.
+`phasedgeno::PolyGeno`: a struct that stores genotypic data and pedigree info.
 
 # Keyword arguments
 
@@ -902,7 +902,7 @@ within the chromosome are deleted.
 rates > maxepsilon.
 
 `skeletonsize::Integer=50`: the number of markers in the skeleton map that is used
-to reduce map length inflation by subsampling markers.
+to re-scale inter-map distances.
 
 `logfile::Union{AbstractString,IOStream}=string(outstem,".log")`: output filenames
 or stream for writing log.

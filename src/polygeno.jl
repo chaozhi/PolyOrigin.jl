@@ -24,16 +24,16 @@ gives the genotype of parent i at marker m of chromosome c.
 [:individual,:population,:isoutlier].
 
 `designinfo::DataFrame`: design information with columns
-[:population, :parent1, :parent2, ...]. The dataframe element n_ij denotes
+[:population, :parent1, :parent2, ...]. The dataframe element `n_ij` denotes
 the nubmer of gametes contributed to each offspring in i-th population by j-th parent.
-n\\_{ij}=2 means that i-th population is produced by self-fertilization of
+`n_ij`=2 means that i-th population is produced by self-fertilization of
 j-th parent. Row sum must be 2.
 
 `delmarker::DataFrame`: dataframe for collecting markers that were removed from markermap,
 in the stages of parental phasing or map refinement. It has columns
 [:marker, :chromosome, :position].
 
-`correction::DataFrame`: dataframe for collecting parental genotype correction.
+`correction::DataFrame`: dataframe for collecting parental genotype corrections.
 It has columns [:round,:marker,:chromosome,:parent,:old_genotype,:new_genotype,:old_nerr,:new_nerr].
 
 !!! note
@@ -94,8 +94,7 @@ end
 """
     readPolyGeno(genofile, pedfile, keyargs...)
 
-performs parental phasing and ancestral inference. Perform only ancestral inference
-in the case of phased parents.
+reads input files and returns polygeno::PolyGeno.
 
 # Positional arguments
 
@@ -103,7 +102,7 @@ in the case of phased parents.
 genofile looks like
 
 ```
-    marker, chromosome, pos(cM), ind1,ind2, ind3, ...
+    marker, chromosome, pos, ind1,ind2, ind3, ...
     snp1, 1, 0.14, 0, 2, 1, 4, ...
     snp2, 1, 0.16, 4, 0, NA, 2, ...
     snp3, 1, 0.21, NA, 3, 0, 1, ...
@@ -111,8 +110,8 @@ genofile looks like
 !!! note
     * The first three columns specify the genetic map. Marker IDs in
       column 1 must be unique, chromosome IDs in column 2 must be
-      consecutive, and positions (in unit of centiMorgan) of markers in column 3
-      must be non-descreasing within a chromosome.
+      consecutive, and positions (in unit of centi-Morgan or base pair)
+      of markers in column 3 must be non-descreasing within a chromosome.
 
     * The rest of columns give the genotypes of sampled individuals. The indvidual
       IDs must be unique. The genotypes of all parents must be represented by
@@ -122,10 +121,10 @@ genofile looks like
       1. `dosage`: ranges from 0, 1, ..., ploidy, and NA for missing dosage;
       2. `readcount`: c1|c2, where c1 and c2 are the number of reads for alleles
          1 and 2, respectively. Missing genotypesare given by 0|0
-      3. `probability`: p0|p1|...|p(ploidy), where p(i) denotes the probability
+      3. `probability`: p(0)|p(1)|...|p(ploidy), where p(i) denotes the probability
           of observed data given dosage i = 0, ..., ploidy, and the probabilities
           are normalized so that their sum is 1.
-      4. `phasedgeno`: g1|g2|...|g(ploidy),  where g(i)=1 or 2 for i=1,..., ploidy.
+      4. `phasedgeno`: g(1)|g(2)|...|g(ploidy),  where g(i)=1 or 2 for i=1,..., ploidy.
 
     * All individuals must be in the `pedfile`.
 
@@ -144,13 +143,13 @@ pedfile looks like
     offspring6, pop4, P3, P3, 4
 ```
 !!! note
-    * The pedigree contains three founders (parents), two offspring from cross
-      beween parents 1 and 2, two offspring from cross between parents 1 and 3,
-      one offspring from cross between parents 2 and 3, and one offspring from selfing of
+    * The pedigree contains three founders (parents), two offspring from the cross
+      beween parents 1 and 2, two offspring from the cross between parents 1 and 3,
+      one offspring from the cross between parents 2 and 3, and one offspring from the selfing of
       parent 3.
 
     * All individual IDs in column 1 must be unique,
-      column 2 denotes ID for the founder population and IDs for each cross or selfing,
+      column 2 denotes ID for the founder population and IDs for each F1 cross or selfing,
       columns 3 and 4 denotes the parents of each sub-population (motherID and fatherID
       of founders are set to 0), and column 5 denotes the ploidy level.
 

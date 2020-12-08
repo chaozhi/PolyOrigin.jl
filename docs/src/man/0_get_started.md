@@ -1,7 +1,7 @@
 # Get started
 
 ## Installation
-From the julia REPL model, type `]` to enter the pKg REPL mode and run
+From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the pKg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl
@@ -14,11 +14,11 @@ To use ```PolyOrigin.jl``` in your project,
 using PolyOrigin
 ```
 
-To use ```PolyOrigin.jl``` with multi-core computation at chromosome level
+To use ```PolyOrigin.jl``` with parallel computation of n workers at chromosome level
 
 ```julia
 using Distributed
-addprocs(4) # set n = min(#CPU threads, #chromosomes)
+addprocs(n)
 @everywhere using PolyOrigin
 ```
 and set ```isparallel=true``` in function [`polyOrigin`](@ref). See `addprocs`

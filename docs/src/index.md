@@ -6,13 +6,6 @@ CurrentModule = PolyOrigin
 
 **Haplotype reconstruction in connected polyploid F1 populations**
 
-## Installation
-From the julia (>v1.5.0) REPL model, type `]` to enter the pKg REPL mode and run
-
-```pkg
-add https://github.com/chaozhi/PolyOrigin.jl
-```
-
 ## Features
 
 - Apply to connected F1 in tetraploid (TODO for higher ploidy levels)
@@ -20,6 +13,13 @@ add https://github.com/chaozhi/PolyOrigin.jl
 - Robust to dosage errors in SNP array data
 - Robust to dosage uncertainties in low coverage GBS data
 - Robust to errors in input genetic or physical map
+
+## Installation
+From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the pKg REPL mode and run
+
+```pkg
+add https://github.com/chaozhi/PolyOrigin.jl
+```
 
 ## Citing PolyOrigin.jl
 

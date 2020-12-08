@@ -6,7 +6,7 @@
 #
 # # Positional arguments
 #
-# `polygeno::PolyGeno`: a struct type that stores genotypic data and pedigree info.
+# `polygeno::PolyGeno`: a struct that stores genotypic data and pedigree info.
 #
 # `chr::Integer`: chromosome index
 #
@@ -15,7 +15,7 @@
 #
 # `priorspace::AbstractDict`: state space for each subpopulation.
 #
-# `polyancestry::PolyAncestry`: a struct type that stores results of ancestral inference.
+# `polyancestry::PolyAncestry`: a struct that stores results of ancestral inference.
 #
 # # Keyword arguments
 #

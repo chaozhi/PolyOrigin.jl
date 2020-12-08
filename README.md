@@ -7,13 +7,6 @@
 
 A package for haplotype reconstruction in connected polyploid F1 populations
 
-## Installation
-From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the pKg REPL mode and run
-
-```pkg
-add https://github.com/chaozhi/PolyOrigin.jl
-```
-
 ## Features
 
 - Apply to connected F1 in tetraploid (TODO for higher ploidy levels)
@@ -21,6 +14,24 @@ add https://github.com/chaozhi/PolyOrigin.jl
 - Robust to dosage errors in SNP array data
 - Robust to dosage uncertainties in low read depth GBS data
 - Robust to errors in input genetic or physical map
+
+## Installation
+From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the pKg REPL mode and run
+
+```pkg
+add https://github.com/chaozhi/PolyOrigin.jl
+```
+
+## Examples
+
+Examples of using PolyOrigin.jl
+
+[Haplotype reconstruction in a simulated tetraploid multi-parental population from SNP array data](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_simarray/step3_tetraploid_simarray.md)
+
+[Haplotype reconstruction in a simulated tetraploid multi-parental population from GBS data](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_simgbs/step2_tetraploid_simgbs.md)
+
+[Haplotype reconstruction in a real 3x3 half-diallel potato population](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_realpotato/tetraploid_realpotato.md)
+
 
 ## Citing PolyOrigin
 

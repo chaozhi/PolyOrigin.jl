@@ -5,7 +5,7 @@ performs ancestral inference from polygeno and return polyancestry::PolyAncestry
 
 # Positional arguments
 
-`polygeno::PolyGeno`: a struct type that stores genotypic data and pedigree info.
+`polygeno::PolyGeno`: a struct that stores genotypic data and pedigree info.
 
 # Keyword arguments
 

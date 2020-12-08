@@ -3,9 +3,9 @@
 """
     readTruegeno!(truefile,polyancestry, keyargs...)
 
-returned named tuple with field parentgeno storing phased parental genotypes,
-field offspringgeno storing true parental origins. `polyancestry` is modified
-(1) extra markers in truefile are putshed into polyancestry.delmarker, (2)
+returned truegeno of NamedTuple with truegeno.parentgeno storing phased parental genotypes,
+and truegeno.offspringgeno storing true parental origins. `polyancestry` is modified
+(1) extra markers in truefile are put into polyancestry.delmarker, (2)
 absolute phase of polyancestry.parentgeno is set according to truegeno.parentgeno,
 and (3) polyancestry.genoprob and polyancestry.haploprob are set to be consistent
 with the absolute phase.
@@ -14,7 +14,7 @@ with the absolute phase.
 
 `truefile::AbstractString`: file storing true values, which has the same requirement
 as the `genofile`. The parental genotypes must be given in the `phasedgeno`  format
-with alleles being "1" and "2". The offspring genotypes must be given in the
+with alleles being "1" and "2". The offspring origin-genotypes must be given in the
 `phasedgeno`  format with allels being parental homologs.
 
 `polyancestry::PolyAncestry`: for checking the consistency of marker IDs,
@@ -160,7 +160,7 @@ end
 """
     calAccuracy!(truefile,polyancestry,workdir=pwd(),io=nothing,verbose=true)
 
-calculate phasing and ancestral inference accuracy accoring to the true values in
+calculate phasing and ancestral inference accuracies accoring to the true values in
 `truefile`. The `polyancestry` is modified with absolute parental phases and
 consistent genoprob.
 
@@ -190,7 +190,7 @@ end
 """
     calAccuracy!(truegeno,polyancestry,io=nothing,verbose=true)
 
-calculate phasing and ancestral inference accuracy accoring to the true values in
+calculate phasing and ancestral inference accuracies accoring to the true values in
 `truegeno`. The `polyancestry` is modified with absolute parental phases and
 consistent genoprob.
 

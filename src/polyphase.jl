@@ -48,7 +48,7 @@ end
         commentstring="#", keyargs...)
 
 performs parental phasing and return phasedgeno::PolyGeno
-with polygeno.parentgeno being phased.
+with phasedgeno.parentgeno being phased.
 
 # Positional arguments
 
@@ -112,11 +112,11 @@ end
     polyPhase!(polygeno::PolyGeno, keyargs...)
 
 performs parental phasing and return phasedgeno::PolyGeno
-with polygeno.parentgeno being phased .
+with  phasedgeno.parentgeno and polygeno.parentgeno being phased .
 
 # Positional arguments
 
-`polygeno::PolyGeno`: a struct type that stores genotypic data and pedigree info.
+`polygeno::PolyGeno`: a struct that stores genotypic data and pedigree info.
 
 # Keyword arguments
 
@@ -242,7 +242,7 @@ function polyPhase!(polygeno::PolyGeno;
     end
     if snpsubset!=nothing
         verbose && @info string("snpsubset=",snpsubset)
-    end    
+    end
     getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
     rawDoseCall!(polygeno,seqerr=seqerr)
     # if kindofgeno(polygeno.parentgeno) == "probability" || kindofgeno(polygeno.offspringgeno) == "probability"

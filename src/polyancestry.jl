@@ -1,12 +1,12 @@
 """
     PolyAncestry
 
-mutable struct that stores phased polygeno and ancestral inference.
+mutable struct the results of haplotype reconstruction.
 
     PolyAncestry(markermap,parentgeno,parentinfo,offspringinfo,designinfo,
         statespace,valentprob,genoprob)
 
-Constructor from phased polygeno and ancestral inference.
+Constructor from the results of haplotype reconstruction.
 
 # Fields
 
@@ -22,32 +22,34 @@ gives the genotype of parent i at marker m of chromosome c.
 [:individual,:population].
 
 `designinfo::DataFrame`: design information with columns
-[:population, :parent1, :parent2, ...], where element D\\_{ij} denotes the nubmer of gametes contributed to each offspring in i-th population by j-th parent.
-D\\_{ij}=2 means that i-th population is produced by self-fertilization of j-th parent.
+[:population, :parent1, :parent2, ...]. The dataframe element `n_ij` denotes
+the nubmer of gametes contributed to each offspring in i-th population by j-th parent.
+`n_ij`=2 means that i-th population is produced by self-fertilization of
+j-th parent. Row sum must be 2.
 
 `delmarker::DataFrame`: dataframe for collecting markers that were removed from markermap,
 in the stages of parental phasing or map refinement. It has columns
 [:marker, :chromosome, :position].
 
-`correction::DataFrame`: dataframe for collecting parental genotype correction.
+`correction::DataFrame`: dataframe for collecting parental genotype corrections.
 It has columns [:marker,:chromosome,:parent,:old_genotype,:new_genotype,:old_nerr,:new_nerr].
 
-`statespace::Dict`: specify valents and ancestral genotypes for each population.
+`statespace::Dict`: specify valents and origin-genotypes for each population.
 Each key is a population id, and its value is in turn a dict with keys:
 "parent", "parentindex", "valent", "valentneighbor", and "groupstate".
 
 `valentprob::Union{Nothing,Vector}`, posterior valent probability for each offspring in each chromosome.
 valentprob[c][o] for offspring o in chromsome c is a matrix with three columns being
-valentindex, loglike, and posterior probability. Here posterior is calcuated from loglike,
-assuming a discrete uniform prior distribution of valents.
+valentindex, loglike, and posterior probability. Here posterior probability is calcuated from loglike,
+assuming a discrete uniform prior distribution of valent configurations.
 
-`genoprob::Vector`: posterior ancestral genotype probability for each offspring
+`genoprob::Vector`: posterior origin-genotype probability for each offspring
 in each chromosome. genoprob[c][o] for offspring o in chromsome c is a sparse matrix,
-with element (m,s) being the probability of genotype s at marker m.
+with element (m,s) being the probability of origin-genotype s at marker m.
 
-`haploprob::Union{Nothing,Vector}`: posterior ancestral haplotype probability for each offspring
+`haploprob::Union{Nothing,Vector}`: posterior origin-haplotype probability for each offspring
 in each chromosome. haploprob[c][o] for offspring o in chromsome c is a sparse matrix,
-with element (m,s) being the probability of haplotype s at marker m.
+with element (m,s) being the probability of origin-haplotype s at marker m.
 
 """
 mutable struct PolyAncestry
@@ -106,38 +108,45 @@ saves polyancestry into outfile in CSV format.
 # Positional arguments
 
 `outfile::AbstractString`: file for saving polyancestry in the directory workdir.
-The file consists of several tables: the first row of each table has two cells:
+The saved outfile consists of several tables: the first row of each table has two cells:
 [PolyOrigin-PolyAncestry, nameoftable], and the rest rows denote a dataframe with column names.
 The following is a list of table names and their descriptions.
 
 1. `designinfo`: design information with columns being [population, parent1, parent2, ...].
-   Matrix element D\\_{ij} denotes the nubmer of gametes contributed to each
-   offspring in i-th population by j-th parent. D\\_{ij}=2 means that i-th population
+   Matrix element D_ij denotes the nubmer of gametes contributed to each
+   offspring in i-th population by j-th parent. D_ij=2 means that i-th population
    is produced by self-fertilization of j-th parent.
 
 2. `parentinfo`: parent information with columns being [individual, ploidy].
 
-3. `offspringinfo`: offspring information with columns being [individual, population, ploidy].
+3. `offspringinfo`: offspring information with columns being [individual, population, ploidy, isoutlier].
 
-4. `valentlist`: list of possible bi- or multi-valent formations (chromosome pairings)
-   for each population. The dataframe has columns [population, parent, valentindex, valent].
+4. `delmarker`: markers that were removed from markermap, in the stages of parental phasing
+or map refinement, with columns being [:marker, :chromosome, :position]
 
-5. `valentprob`: posterior valent probability for each offspring in each chromosome.
+5. `correction`: parental genotype corrections with columns being
+[:round, :marker,:chromosome,:parent,:old_genotype,:new_genotype,:old_nerr,:new_nerr].
+
+6. `valentlist`: list of possible bi- or multi-valent formations for each population.
+   The dataframe has columns [population, parentindex, parent, valentindex, valent].
+
+7. `valentprob`: posterior valent probability for each offspring in each chromosome.
    The dataframe has columns
    [chromosome, individual, population, valentindex, valent, loglike, valentprob].
 
-6. `parentgeno`: phased parental genotypes. The dataframe has columns
+8. `parentgeno`: phased parental genotypes. The dataframe has columns
    [marker, chromosome, position, parent1, parent2, ...].
 
-7. `ancestralgenotype`: list of ancestral genotypes for each population. The dataframe
-   has columns [population, parent, stateindex, state]
+9. `ancestralgenotype`: list of origin-genotypes for each population. The dataframe
+   has columns [population, parentindex, parent, stateindex, state]
 
-8. `genoprob`: marginal posterior probabilities for ancestral genotypes. For each offspring
+10. `genoprob`: marginal posterior probabilities for origin-genotypes. For each offspring
    at each marker, the posterior probability vector is represented by a sparse vector
    in the form of I=>V: state index vector I and non-zero probability vector V such
    that I[k]=V[k] for k=1, ..., K. The elements of vector I or V are delimited by "|".
 
-`polyancestry::PolyAncestry`: results of ancestral inference returned from [`polyOrigin`](@ref).
+`polyancestry::PolyAncestry`: results of haplotype reconstruction returned
+ from [`polyOrigin`](@ref).
 
 # Keyward arguments
 
@@ -290,7 +299,7 @@ end
 """
     readPolyAncestry(genoprobfile, pedfile, missingstring="NA",workdir=pwd())
 
-return a struct varaible with type PolyAncestry from  genoprobfile and pedfile
+return a struct of with type PolyAncestry from  genoprobfile and pedfile
     in the directory workdir.
 
 # Positional argument
@@ -380,7 +389,7 @@ end
 """
     readPolyAncestry(ancestryfile, missingstring="NA",workdir=pwd())
 
-return a struct varaible with type PolyAncestry from  ancestryfile in the
+return a struct of type PolyAncestry from  ancestryfile in the
     directory workdir.
 
 # Positional argument
@@ -553,8 +562,7 @@ end
 """
     savegenoprob(outfile,polyancestry,missingstring="NA",workdir=pwd())
 
-saves genoprob of the struct polyancestry into outfile, phased parental
-    genotypes being also included.
+saves polyancestry.genoprob and polyancestry.parentgeno into outfile.
 
 # Positional arguments
 

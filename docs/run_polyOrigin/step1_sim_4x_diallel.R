@@ -30,7 +30,6 @@ pedigreesimR(sim$map,sim$hap,
              pedigree,workingfolder = getwd(),
              epsilon = c(0.01,0.01),
              missingFreq=c(0.1,0.1),
-             # GBS=TRUE,GBSavgdepth = 20
 )
 
 # delete all pedsim*.* files. 
@@ -41,5 +40,4 @@ unlink("*geno.csv")
 file.rename(list.files(pattern="*geno_snparray.csv")[1], "geno.csv")
 file.rename(list.files(pattern="*truevalue_ancestral.csv")[1], "true.csv")
 file.rename(list.files(pattern="*pedigree.csv")[1], "ped.csv")
-
 
