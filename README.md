@@ -1,4 +1,4 @@
-# PolyOrigin
+# PolyOrigin.jl
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://chaozhi.github.io/PolyOrigin.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://chaozhi.github.io/PolyOrigin.jl/dev)
