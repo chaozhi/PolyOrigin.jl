@@ -49,6 +49,10 @@ phased parental genotypes, and posterior origin-genotype probabilities. See [`sa
 `outstem_postdoseprob.csv`: same as the input genofile, except that  parent genotypes
 are phased and offspring genotypes are given by the posterior dose probabilities.
 
+# Example
+```julia-repl
+julia> polyOrigin(genofile,pedfile)
+```
 """
 function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
     delimchar::AbstractChar=',',
@@ -264,7 +268,7 @@ log file or IO for writing log. If nothing, no log file.
 # Example
 ```julia-repl
 julia> polygeno = readPolyGeno(genofile,pedfile)
-julia> polyOrigin(polygeno)
+julia> polyOrigin!(polygeno)
 ```
 """
 function polyOrigin!(polygeno::PolyGeno;
