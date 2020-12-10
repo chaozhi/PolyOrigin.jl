@@ -10,14 +10,15 @@ pedfile = "ped.csv"
 outstem = "outstem"
 polyancestry = polyOrigin(genofile,pedfile;
     chrpairing=44,    
+    isphysmap = false,
     refinemap=true,
-    refineorder=true,
+    refineorder=true,    
     workdir,
     outstem,    
 )
 filter(x->occursin(outstem,x), readdir(workdir))
 ```
-Here `chrpairing=44` denotes bivalent and quadrivalent formations in ancestral inference. `refinemap` and `refineorder` specify to refine inter-marker distances and local marker ordering. `workdir` specifies the directory of input and output files, and `outstem` specifies the filename stem for output files.
+Here `chrpairing=44` denotes bivalent and quadrivalent formations in ancestral inference. `isphysmap` specifies if the input map is a physical map, `refinemap` specifies if refine the input map and `refineorder` specifies further if refine only inter-marker distances (`refinemap`=true and `refineorder`=false), `workdir` specifies the directory of input and output files, and `outstem` specifies the filename stem for output files.
 
 The polyOrigin function produces the following outputfiles:
 * `outstem.log`: log file saves messages that are printed on console.
@@ -41,8 +42,7 @@ workdir = joinpath(pkgdir(PolyOrigin),"docs","run_polyOrigin")
 
 ```@example setdir
 polyancestry = readPolyAncestry("outstem_polyancestry.csv",workdir=workdir)
-truefile = "true.csv"
-truegeno = readTruegeno!(truefile,polyancestry,workdir=workdir)
+truegeno = readTruegeno!("true.csv",polyancestry,workdir=workdir)
 animCondprob(polyancestry,truegeno=truegeno)
 ```
 
@@ -56,8 +56,7 @@ workdir = joinpath(pkgdir(PolyOrigin),"docs","run_polyOrigin")
 genofile = "geno_disturbed.csv"
 pedfile = "ped.csv"
 polyancestry = readPolyAncestry("outstem_polyancestry.csv",workdir=workdir)
-truefile = "true.csv"
-truegeno = readTruegeno!(truefile,polyancestry,workdir=workdir)
+truegeno = readTruegeno!("true.csv",polyancestry,workdir=workdir)
 ```
 
 ```@example settrue

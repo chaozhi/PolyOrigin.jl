@@ -10,6 +10,7 @@ outstem = "outstem"
 @time polyancestry = polyOrigin(genofile, pedfile;
     refinemap=true,
     refineorder=true,
+    isphysmap = false,
     # isplot=true,
 )
 
