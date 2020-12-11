@@ -68,7 +68,7 @@ fig2 = plotMapComp(truegeno.truemap, polyancestry.markermap,
     xlabel="True position (cM)",
     ylabel="Estimated position (cM)")
 using Plots
-plot(fig,fig2)
+plot(fig,fig2,left_margin = 5Plots.mm, bottom_margin = 5Plots.mm)
 ```
 
 where tau is the Kendall rank correlation between true map and comparing map.
