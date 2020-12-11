@@ -43,7 +43,9 @@ workdir = joinpath(pkgdir(PolyOrigin),"docs","run_polyOrigin")
 ```@example setdir
 polyancestry = readPolyAncestry("outstem_polyancestry.csv",workdir=workdir)
 truegeno = readTruegeno!("true.csv",polyancestry,workdir=workdir)
-animCondprob(polyancestry,truegeno=truegeno)
+using Plots
+animCondprob(polyancestry; truegeno=truegeno,
+    left_margin = 8Plots.mm, bottom_margin = 5Plots.mm)
 ```
 
 # Evaluate estimated map
@@ -68,7 +70,7 @@ fig2 = plotMapComp(truegeno.truemap, polyancestry.markermap,
     xlabel="True position (cM)",
     ylabel="Estimated position (cM)")
 using Plots
-plot(fig,fig2,left_margin = 5Plots.mm, bottom_margin = 5Plots.mm)
+plot(fig,fig2,left_margin = 8Plots.mm, bottom_margin = 5Plots.mm)
 ```
 
 where tau is the Kendall rank correlation between true map and comparing map.

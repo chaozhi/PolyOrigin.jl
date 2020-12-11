@@ -19,6 +19,10 @@ by default.
 `colorgradient::ColorGradient=ColorGradient([:white,:blue,:red])`: color gradient
 for heatmap
 
+`left_margin = :match`: Specifies the extra padding to the left of the subplot
+
+`bottom_margin = :match`: Specifies the extra padding to the bottom of the subplot
+
 `boundaryline=(1.5,:dot,:black)`: vertical lines for chromosome boundaries.
 
 `truemarker=(:star, 5, 0.5,:gray,stroke(:gray))`: scatter markers for
@@ -32,6 +36,8 @@ function plotCondprob(polyancestry::PolyAncestry;
     offspring::Union{Nothing,Integer}=nothing,
     ishaploprob::Bool=true,
     colorgradient::ColorGradient=cgrad([:white,:blue,:red]),
+    left_margin = :match,
+    bottom_margin = :match,
     boundaryline = (1.5,:dot,:black),
     truemarker=(:star, 5, 0.5,:gray,stroke(:gray)),
     truegeno::Union{Nothing,NamedTuple}=nothing)
@@ -47,7 +53,7 @@ function plotCondprob(polyancestry::PolyAncestry;
     offid2 = string(offid,polyancestry.offspringinfo[off,:isoutlier] === true ? "(outlier)" : "")
     prob = [i[off] for i=condprob]
     heat=Matrix(vcat(prob...)')
-    ibdmap=heatmap(heat,c=colorgradient)
+    ibdmap=heatmap(heat; c=colorgradient,left_margin, bottom_margin)
     len = size.(prob,1)
     nstate= size(heat,1)
     x0=accumulate(+,len[1:end])
@@ -90,6 +96,8 @@ function saveProbPlot(
     polyancestry::PolyAncestry;
     ishaploprob::Bool = true,
     colorgradient::ColorGradient = cgrad([:white, :blue, :red]),
+    left_margin = :match,
+    bottom_margin = :match,
     boundaryline = (1.5, :dot, :black),
     truemarker = (:star, 5, 0.5, :gray, stroke(:gray)),
     truegeno::Union{Nothing,NamedTuple} = nothing,
@@ -111,7 +119,8 @@ function saveProbPlot(
                 string(outid, i, "th_offspring_", offid2, ".png"),
             )
             plotCondprob(polyancestry; offspring = i,
-                ishaploprob,colorgradient,boundaryline,truemarker,truegeno)
+                ishaploprob,colorgradient,left_margin,bottom_margin,
+                boundaryline,truemarker,truegeno)
             savefig(fn)
         end
     end
@@ -141,6 +150,8 @@ function animCondprob(polyancestry::PolyAncestry;
     offspring::Union{Nothing,Integer}=nothing,
     ishaploprob::Bool=true,
     colorgradient::ColorGradient=cgrad([:white,:blue,:red]),
+    left_margin = :match,
+    bottom_margin = :match,
     boundaryline = (1.5,:dot,:black),
     truemarker=(:xcross, 3, 0.5,:gray,stroke(:gray)),
     truegeno::Union{Nothing,NamedTuple}=nothing,
@@ -150,13 +161,10 @@ function animCondprob(polyancestry::PolyAncestry;
     n1 = ceil(Int,fps)
     n2 = fps == 0 ? 1 : ceil(Int,1/fps)
     @time for off=1:noff
-        plotCondprob(polyancestry,
-            offspring=off,
-            ishaploprob=ishaploprob,
-            colorgradient=colorgradient,
-            boundaryline=boundaryline,
-            truemarker=truemarker,
-            truegeno=truegeno
+        plotCondprob(polyancestry; offspring=off,
+            ishaploprob, colorgradient,
+            left_margin, bottom_margin,
+            boundaryline, truemarker,truegeno
         )
         for i=1:n2
             frame(anim)
