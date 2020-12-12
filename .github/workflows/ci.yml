@@ -22,7 +22,14 @@ jobs:
           - x64
           # - x86
         include:
-          - version: 'nightly'
+          - os: ubuntu-latest
+            version: 'nightly'
+            allow_failure: true
+          - os: macOS-latest
+            version: 'nightly'
+            allow_failure: true
+          - os: windows-latest
+            version: 'nightly'
             allow_failure: true
         # exclude:
         #   - os: macOS-latest
