@@ -15,6 +15,6 @@ acc,tau, polyancestry = calacctau(dataid,isgbs,isrefine)
 # rm(ancestryfile)
 @test tau[1] >= 0.9
 @test acc.ndoseerr <=1
-@test acc.nphaseerr<=2
+@test acc.nphaseerr<=3
 @test acc.assignerr<0.09
 @test acc.callerr<0.09
