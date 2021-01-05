@@ -1,6 +1,5 @@
 # PolyOrigin.jl
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://chaozhi.github.io/PolyOrigin.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://chaozhi.github.io/PolyOrigin.jl/dev)
 [![Build Status](https://github.com/chaozhi/PolyOrigin.jl/workflows/CI/badge.svg)](https://github.com/chaozhi/PolyOrigin.jl/actions)
 [![Coverage](https://codecov.io/gh/chaozhi/PolyOrigin.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/chaozhi/PolyOrigin.jl)
@@ -37,4 +36,4 @@ Examples of using PolyOrigin.jl
 
  If you use PolyOrigin in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. Manuscript.*
+  *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. doi: https://doi.org/10.1101/2020.12.18.423519.*

@@ -15,7 +15,7 @@ CurrentModule = PolyOrigin
 - Robust to errors in input genetic or physical map
 
 ## Installation
-From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the pKg REPL mode and run
+From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl
@@ -25,4 +25,4 @@ add https://github.com/chaozhi/PolyOrigin.jl
 
  If you use PolyOrigin.jl in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. Manuscript.*
+  *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. doi: https://doi.org/10.1101/2020.12.18.423519.*

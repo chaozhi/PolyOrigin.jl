@@ -14,7 +14,7 @@ using LinearAlgebra, SparseArrays, Random, Statistics
 using Pkg, DelimitedFiles, Printf,Serialization, Dates
 using DataFrames, CSV, Combinatorics, StatsBase
 using DataStructures, Distributions, Distributed
-using LightGraphs, GraphRecipes, Plots; gr()
+using LightGraphs, GraphRecipes, StatsPlots,Plots; gr()
 
 export
     # private function
@@ -41,7 +41,7 @@ export
     PolyGeno, PolyAncestry,
     readPolyGeno,readPolyAncestry,savePolyAncestry,
     polyOrigin,polyOrigin!,
-    plotCondprob, animCondprob,plotMapComp,
+    plotCondprob, animCondprob,plotMapComp,calvalentfreq,plotvalentfreq,
     readTruegeno!,calAccuracy!
 
 include("basis.jl")

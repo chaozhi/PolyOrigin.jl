@@ -379,3 +379,70 @@ function plotdesign(polygeno::PolyGeno;
         )
     plot!(size=plotsize)
 end
+
+
+function calvalentfreq(polyancestry::PolyAncestry)
+    parentls = polyancestry.parentinfo[!,:individual]
+    chrls = [i[1,:chromosome] for i=polyancestry.markermap]
+    popls = keys(polyancestry.statespace)
+    inddict = Dict([pop =>findall(polyancestry.offspringinfo[!,:population] .== pop) for pop=popls])
+    # TODO: parent specific ploidy/valentname
+    ploidy =  polyancestry.offspringinfo[1,:ploidy]
+    valents = polyancestry.statespace[first(popls)]["valent"]
+    valentname = [i[1][1] == 1:ploidy ? join(i[1][1],":") : join(join.(i[1],":"),"-") for i=valents[:,1]]
+    resls =[begin
+        res = zeros(length(parentls),length(valentname))
+        maxvv = [divrem(i[1,1]-1,length(valentname)) .+ 1  for i=polyancestry.valentprob[chr]]
+        p1v = [i[1] for i=maxvv]
+        p2v = [i[2] for i=maxvv]
+        for pop=popls
+            pp = polyancestry.statespace[pop]["parentindex"]
+            if length(pp)==1
+                p1=p2=only(pp)
+            elseif length(pp)==2
+                p1,p2 = pp
+            else
+                error(string("wrong parents ",pp))
+            end
+            for off = inddict[pop]
+                res[p1,p1v[off]] +=1
+                res[p2,p2v[off]] +=1
+            end
+        end
+        for i=1:size(res,1)
+            res[i,:] ./= sum(res[i,:])
+        end
+        res
+    end for chr=1:length(chrls)]
+    vvfrac = round.(vcat(resls...),digits=4)
+    resdf = DataFrame(vvfrac,Symbol.(valentname))
+    df0 = DataFrame(["chromosome"=>repeat(chrls,inner=length(parentls)),
+        "parent"=>repeat(parentls,outer=length(chrls))])
+    resdf2 = hcat(df0,resdf)
+    resdf2
+end
+
+function plotvalentfreq(valentfreq::DataFrame)
+    valentname = names(valentfreq)[3:end]
+    freqparent = combine(groupby(valentfreq,:parent),3:6 .=> sum)
+    freqchr = combine(groupby(valentfreq,:chromosome),3:6 .=> sum)
+    freqparent[:,2:end] ./= size(freqchr,1)
+    freqchr[:,2:end] ./= size(freqparent,1)
+    ctg = repeat(valentname, inner = size(freqparent,1))
+    x = repeat(freqparent[!,:parent],outer=length(valentname))
+    y = Matrix(freqparent[:,2:end])
+    barparent = groupedbar(x, y, group = ctg,
+        bar_position = :stack,
+        xlabel = "Parents", ylabel = "Frequencies",
+        lw = 0, framestyle = :box
+    )
+    ctg = repeat(valentname, inner = size(freqchr,1))
+    x = repeat(freqchr[!,:chromosome],outer=length(valentname))
+    y = Matrix(freqchr[:,2:end])
+    barchr = groupedbar(x, y, group = ctg,
+        bar_position = :stack,
+        xlabel = "Chromosomes", ylabel = "Frequencies",
+        lw = 0, framestyle = :box
+    )
+    plot(barparent,barchr)    
+end
