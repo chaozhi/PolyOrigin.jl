@@ -21,7 +21,7 @@ see [`readPolyGeno`](@ref) for the requirements of `genofile` and `pedfile`.
 
 `missingstring::AbstractString="NA"`: string code for missing value.
 
-`commentstring::AbstractString="#"`: rows that begins with commentstring will be ignored.
+`commentstring::AbstractString="#"`: rows that begin with commentstring will be ignored.
 
 `isphysmap::Bool=false`: if true, input markermap is physical map, where
 marker locations are in unit of base pair(bp).

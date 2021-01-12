@@ -324,7 +324,7 @@ function plotdesign(polygeno::PolyGeno;
     nodecolor = 1,
     plotsize = nothing,
     fontsize = 7,
-    method = :stress,
+    method = :circular,
     nodesize = nothing,
     self_edge_size = 0.1,
     edgecolor = :black,

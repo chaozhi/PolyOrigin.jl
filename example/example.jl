@@ -1,6 +1,6 @@
-using Revise
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
+# using Revise
+# using Pkg
+# Pkg.activate(joinpath(@__DIR__, ".."))
 using PolyOrigin
 cd(@__DIR__)
 pwd()
@@ -14,11 +14,8 @@ pedfile = "ped.csv"
     # isplot=true,
 )
 
-genofile = "tetraploid_simarray_geno.csv"
-pedfile = "tetraploid_simarray_ped.csv"
-
 polygeno = readPolyGeno(genofile, pedfile)
-PolyOrigin.plotdesign(polygeno)
+PolyOrigin.plotdesign(polygeno;method=:circular)
 
 # plot relative frequencies of valent configurations
 polyancestry = readPolyAncestry("outstem_polyancestry.csv")
