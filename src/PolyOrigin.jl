@@ -61,4 +61,6 @@ include("parentcorrect.jl")
 include("polyplot.jl")
 include("calaccuracy.jl")
 
+# precompile(polyOrigin,(String,String,))
+
 end # module

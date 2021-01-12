@@ -324,6 +324,7 @@ function plotdesign(polygeno::PolyGeno;
     nodecolor = 1,
     plotsize = nothing,
     fontsize = 7,
+    method = :stress,
     nodesize = nothing,
     self_edge_size = 0.1,
     edgecolor = :black,
@@ -373,7 +374,7 @@ function plotdesign(polygeno::PolyGeno;
         nodeshape=:circle,
         edgelabel=edgelabel_mtx,
         curves,self_edge_size,
-        fontsize,
+        fontsize, method,
         nodesize, nodecolor,
         edgecolor, edgestyle
         )
@@ -444,5 +445,5 @@ function plotvalentfreq(valentfreq::DataFrame)
         xlabel = "Chromosomes", ylabel = "Frequencies",
         lw = 0, framestyle = :box
     )
-    plot(barparent,barchr)    
+    plot(barparent,barchr)
 end

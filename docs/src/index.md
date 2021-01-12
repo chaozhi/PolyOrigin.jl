@@ -23,6 +23,6 @@ add https://github.com/chaozhi/PolyOrigin.jl
 
 ## Citing PolyOrigin.jl
 
- If you use PolyOrigin.jl in your analyses and publish your results, please cite the article:
+If you use PolyOrigin in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. doi: https://doi.org/10.1101/2020.12.18.423519.*
+ *Zheng C, Amadeu R, Munoz P, and Endelman J. 2020. Haplotype reconstruction in connected tetraploid F1 populations. doi: https://doi.org/10.1101/2020.12.18.423519.*

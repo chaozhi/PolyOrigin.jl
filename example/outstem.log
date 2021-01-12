@@ -1,0 +1,131 @@
+Julia version: 1.5.3
+Project PolyOrigin v0.5.3
+No Matches in `C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\Project.toml`
+=================================polyOrigin=================================
+PolyOrigin, polyOrigin, logfile=outstem.log, 2021-01-08T16:12:24.44
+list of input files: 
+genofile = geno.csv
+pedfile = ped.csv
+file input/output options: 
+delimchar = ,
+missingstring = NA
+commentstring = #
+----------------------------------phasing-----------------------------------
+PolyOrigin, polyPhase, logfile=IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>), 2021-01-08T16:13:41.135
+list of option values: 
+epsilon = 0.01
+seqerr = 0.001
+chrpairing_phase = 22
+byparent = true for simple biparental cross
+byneighbor = true for max(ploidy) >= 6
+chrsubset = all chromosomes
+snpsubset = all markers
+isparallel = false
+delmarker = true
+delsiglevel = 0.05
+maxstuck = 5
+maxiter = 30
+minrun = 3
+maxrun = 10
+refhapfile = nothing
+missingstring = NA
+outstem = outstem
+logfile = IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>)
+workdir = C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example
+verbose = true
+data: #pop=4, #parent=3, #offspring=40, #chr=1, #marker=120
+phasing connected parents: A, B, C
+#chr=A, run=1, it=1, logl=-3165.82, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=1, it=2, logl=-1831.49, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=1, it=3, logl=-1499.24, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=1, it=4, logl=-1475.49, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=1, it=5, logl=-1475.49, epsilon=0.01, nstuck=5, ndel=0
+#chr=A, run=2, it=1, logl=-4255.17, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=2, it=2, logl=-2114.58, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=2, it=3, logl=-1700.7, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=2, it=4, logl=-1503.54, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=2, it=5, logl=-1475.49, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=2, it=6, logl=-1475.49, epsilon=0.01, nstuck=5, ndel=0
+#chr=A, run=3, it=1, logl=-4413.35, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=3, it=2, logl=-2149.77, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=3, it=3, logl=-1475.49, epsilon=0.01, nstuck=0, ndel=0
+#chr=A, run=3, it=4, logl=-1475.49, epsilon=0.01, nstuck=5, ndel=0
+#chr=A, #marker=120, done, elapsed=46.0 seconds, #mismatch(run1 ~ runs) = [0, 0, 0]
+parentphased file: outstem_parentphased.csv
+End, 2021-01-08T16:14:33.642, time elapsed = 53.0 seconds by polyPhase
+--------------------------------maprefinning--------------------------------
+PolyOrigin, polyReconstruct!, 2021-01-08T16:14:33.728
+list of option values: 
+epsilon = 0.01
+seqerr = 0.001
+chrpairing = 44
+chrsubset = all chromosomes
+snpsubset = all markers
+isparallel = false
+correctthreshold = 0.15
+missingstring = NA
+outstem = not save to files
+logfile = IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>)
+workdir = C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example
+verbose = true
+#chr=A, it=1, <eps>=0.0284, #dose_diff=4, #phase_diff=4, #error_diff=68.0
+#chr=A, it=2, <eps>=0.013, no_error_correction
+End, 2021-01-08T16:15:06.265, time elapsed = 33.0 seconds by polyReconstruct!
+PolyOrigin, polyMapRefine, logfile=IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>), 2021-01-08T16:15:06.339
+list of option values: 
+epsilon = 0.01
+chrpairing = 44
+chrsubset = all chromosomes
+snpsubset = all markers
+isparallel = false
+maxwinsize = 50
+inittemperature = 4
+coolingrate = 0.5
+stripdis = 20
+maxepsilon = 0.5
+skeletonsize = 50
+outstem = outstem
+logfile = IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>)
+workdir = C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example
+verbose = true
+no offspring excluded
+#chr=A, it=1, logl=-1214.2, len=126.8, ndel=0, <eps>=0.0232, win=13, T=4.0
+#chr=A, it=2, logl=-1122.7, len=108.8, ndel=0, <eps>=0.0209, win=8, T=2.0
+#chr=A, it=3, logl=-1087.1, len=107.9, ndel=0, <eps>=0.0205, win=5, T=1.0
+#chr=A, it=4, logl=-1083.4, len=105.6, ndel=0, <eps>=0.0175, win=2, T=0.5
+#chr=A, it=5, logl=-1073.3, len=105.9, ndel=0
+#chr=A, it=6, logl=-1072.7, len=105.3, ndel=0
+#chr=A, it=1, logl=-655.8, len=96.9, skeleton=50, <eps>=0.0131
+#chr=A, it=2, logl=-657.8, len=101.8, skeleton=50, <eps>=0.0154
+#chr=A, it=3, logl=-657.7, len=102.0, skeleton=50, <eps>=0.0157
+#chr=A, it=4, logl=-658.9, len=102.0, skeleton=50, <eps>=0.0168
+#chr=A, it=5, logl=-660.2, len=101.7, skeleton=50, <eps>=0.018
+#chr=A, done, elapsed=29.0seconds, len=101.7cM, #marker=120
+maprefined file: outstem_maprefined.csv
+Kendall tau between inputmap and refinedmap = [0.9347]
+End, 2021-01-08T16:15:39.727, time used = 33.0 seconds by polyMapRefine
+-------------------------------reconstructing-------------------------------
+PolyOrigin, polyReconstruct!, 2021-01-08T16:15:39.728
+list of option values: 
+epsilon = 0.01
+seqerr = 0.001
+chrpairing = 44
+chrsubset = all chromosomes
+snpsubset = all markers
+isparallel = false
+correctthreshold = 0.15
+missingstring = NA
+outstem = outstem
+logfile = IOStream(<file C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example\outstem.log>)
+workdir = C:\Chaozhi\Workspace\JuliaWorkspace\Workspace_Polyploid\PolyOrigin\example
+verbose = true
+#chr=A, it=1, <eps>=0.0267, no_error_correction
+no outlier offspring
+parentcorrected file: outstem_parentphased_corrected.csv
+polyancestry file: outstem_polyancestry.csv
+genoprob file: outstem_genoprob.csv, a concise polyancestry file
+postdoseprob file: outstem_postdoseprob.csv
+End, 2021-01-08T16:15:49.372, time elapsed = 10.0 seconds by polyReconstruct!
+----------------------------------------------------------------------------
+End, 2021-01-08T16:15:49.373, total time used = 205.0 seconds by polyOrigin
+============================================================================

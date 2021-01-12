@@ -14,6 +14,9 @@ pedfile = "ped.csv"
     # isplot=true,
 )
 
+genofile = "tetraploid_simarray_geno.csv"
+pedfile = "tetraploid_simarray_ped.csv"
+
 polygeno = readPolyGeno(genofile, pedfile)
 PolyOrigin.plotdesign(polygeno)
 
