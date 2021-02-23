@@ -1,7 +1,5 @@
 # Installing and using the PedigreeSimR to simulate the cross and GBS data
-# devtools::install_github("rramadeu/PedigreeSimR",
-#                          auth_token = "47b8aa6fe594e5c42efc7f4c0b951a2efc0b6663",
-#                          force=TRUE)
+# devtools::install_github("rramadeu/PedigreeSimR")
 library(PedigreeSimR)
 packageVersion("PedigreeSimR")
 

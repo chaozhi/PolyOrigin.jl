@@ -2,7 +2,7 @@
 # using Pkg
 # Pkg.activate(joinpath(@__DIR__, ".."))
 using PolyOrigin
-cd(@__DIR__)
+cd(dirname(@__FILE__))
 pwd()
 
 # run polyorigin
@@ -15,7 +15,7 @@ pedfile = "ped.csv"
 )
 
 polygeno = readPolyGeno(genofile, pedfile)
-PolyOrigin.plotdesign(polygeno;method=:circular)
+PolyOrigin.plotdesign(polygeno,method=:circular)
 
 # plot relative frequencies of valent configurations
 polyancestry = readPolyAncestry("outstem_polyancestry.csv")

@@ -314,15 +314,17 @@ function polyOrigin!(polygeno::PolyGeno;
             io=logfile
         end
     end
-    gdesign= PolyOrigin.plotdesign(polygeno)
-    verbose && display(gdesign)
-    if isplot && (!isnothing(outstem))
-        figdir = joinpath(workdir, outstem * "_plots")
-        isdir(figdir) || mkdir(figdir)
-        fn = joinpath(figdir,outstem * "_pedigree.png")
-        savefig(gdesign,fn)
-        msg = string("save design plot in ", fn)
-        printconsole(io,verbose,msg)
+    if size(polygeno.parentinfo,1)>1
+        gdesign= PolyOrigin.plotdesign(polygeno)
+        verbose && display(gdesign)
+        if isplot && (!isnothing(outstem))
+            figdir = joinpath(workdir, outstem * "_plots")
+            isdir(figdir) || mkdir(figdir)
+            fn = joinpath(figdir,outstem * "_pedigree.png")
+            savefig(gdesign,fn)
+            msg = string("save design plot in ", fn)
+            printconsole(io,verbose,msg)
+        end
     end
     if kindofgeno(polygeno.parentgeno) == "phasedgeno"
         phasedgeno = getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
