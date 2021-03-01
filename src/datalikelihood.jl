@@ -155,17 +155,22 @@ function caldataprob(offdose::AbstractVector,popid::String,ploidy::Integer,
         # res = [caldataprob_prob(offdose[i],ddose[i,:],ploidy,epsilonls[i]) for i=1:nsnp]
         # return hcat(res...)'
     elseif type <: Union{Missing,Integer}
-        diff=[ddose[i,j] - offdose[i] for i=1:size(ddose,1), j=1:size(ddose,2)]
-        # if derived dose is missing, all offspring doses are missing,thus like =1
-        res = ones(size(ddose))
-        # nonmiss = findall(.!(ismissing.(epsilonls)))
-        for i=1:nsnp
-            ismiss = any(ismissing.(ddose[i,:])) || ismissing(epsilonls[i])
-            if !ismiss
-                rule=Dict([0 => 1-epsilonls[i],missing =>1])
-                res[i,:]=[get(rule,j,epsilonls[i]/ploidy) for j=diff[i,:]]
-            end
-        end
+        # diff=[ddose[i,j] - offdose[i] for i=1:size(ddose,1), j=1:size(ddose,2)]
+        # # if derived dose is missing, all offspring doses are missing,thus like =1
+        # res = ones(size(ddose))
+        # # nonmiss = findall(.!(ismissing.(epsilonls)))
+        # for i=1:nsnp
+        #     ismiss = any(ismissing.(ddose[i,:])) || ismissing(epsilonls[i])
+        #     if !ismiss
+        #         rule=Dict([0 => 1-epsilonls[i],missing =>1])
+        #         res[i,:]=[get(rule,j,epsilonls[i]/ploidy) for j=diff[i,:]]
+        #     end
+        # end
+        res=[begin
+                d = ddose[i,j] - offdose[i]
+                cond = ismissing(d) || ismissing(epsilonls[i])
+                cond ? 1.0 : (d == 0 ? (1-epsilonls[i]) : (epsilonls[i]/ploidy))
+            end for i=1:size(ddose,1), j=1:size(ddose,2)]
         return res
     else
         @error string("unknow offspring genodata type: ",type)

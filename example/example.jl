@@ -1,6 +1,6 @@
-# using Revise
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__, ".."))
+using Revise
+using Pkg
+Pkg.activate(joinpath(@__DIR__, ".."))
 using PolyOrigin
 cd(dirname(@__FILE__))
 pwd()
