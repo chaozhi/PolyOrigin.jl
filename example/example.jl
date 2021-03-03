@@ -22,6 +22,7 @@ polyancestry = readPolyAncestry("outstem_polyancestry.csv")
 valentfreq = calvalentfreq(polyancestry)
 plotvalentfreq(valentfreq)
 
+
 # calculate the accuracy of parental phasing and ancestral inference
 truefile = "true.csv"
 truegeno = readTruegeno!(truefile, polyancestry)

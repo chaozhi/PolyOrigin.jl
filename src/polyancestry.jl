@@ -384,6 +384,8 @@ function readPolyAncestry(genoprobfile::AbstractString,
     correction = DataFrame(coltype,colid)
     polyancestry=PolyAncestry(markermap2,parentgeno2, parentinfo,offspringinfo,
         designinfo,delmarker,correction,statespace,nothing,offgenoprob2,nothing)
+    sethaploprob!(polyancestry)
+    polyancestry
 end
 
 """
