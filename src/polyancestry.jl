@@ -380,8 +380,10 @@ function readPolyAncestry(genoprobfile::AbstractString,
         ", #chr=",length(markermap2), ", #marker=",size(markermap,1))
     delmarker = getemptydf([String,String,Float64],[:marker,:chromosome,:position])
     colid = [:round,:marker,:chromosome,:parent,:old_genotype,:new_genotype, :old_nerr,:new_nerr]
-    coltype = [Integer,String,String,String,String,String,Integer,Integer]
-    correction = DataFrame(coltype,colid)
+    correction = DataFrame(zeros(Int,0,8),colid)
+    for i=2:6
+        correction[!,i] .= string.(correction[!,i])
+    end
     polyancestry=PolyAncestry(markermap2,parentgeno2, parentinfo,offspringinfo,
         designinfo,delmarker,correction,statespace,nothing,offgenoprob2,nothing)
     sethaploprob!(polyancestry)
