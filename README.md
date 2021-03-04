@@ -15,10 +15,18 @@ A package for haplotype reconstruction in connected polyploid F1 populations
 - Robust to errors in input genetic or physical map
 
 ## Installation
-From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
-```pkg
-add https://github.com/chaozhi/PolyOrigin.jl
+From the julia (>v1.5.0, 64-bit) REPL model, run
+
+```
+julia>]add https://github.com/chaozhi/PolyOrigin.jl
+```
+where `]` enters Pkg REPL model.
+
+To update the package, run
+
+```
+julia>]up PolyOrigin
 ```
 
 ## Vignettes
@@ -29,119 +37,23 @@ add https://github.com/chaozhi/PolyOrigin.jl
 
 [Haplotype reconstruction in a real 3x3 half-diallel potato population](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_realpotato/tetraploid_realpotato.md)
 
-
 ## Usage
 
 From the julia REPL model, run
-```julia-repl
-using PolyOrigin
+```
+julia>using PolyOrigin
 ```
 
 ## Help
 
-From the julia REPL model, run
-```julia-repl
-?polyOrigin
+List the names (types, functions, etc) exported by the package
 ```
-where `?` enters Help REPL model.
-
-`polyOrigin(genofile, pedfile, keyargs...)` performs parental phasing and ancestral inference from input files. Only ancestral inference is performed in the case of phased parents.
-
-### Positional arguments
-
-`genofile::AbstractString`: filename for genotypic data file.
-
-`pedfile::AbstractString`:  filename for pedigree information.
-
-### Keyword arguments
-
-`delimchar::AbstractChar=','`:  text delimiter.
-
-`missingstring::AbstractString="NA"`: string code for missing value.
-
-`commentstring::AbstractString="#"`: rows that begin with commentstring will be ignored.
-
-`isphysmap::Bool=false`: if true, input markermap is physical map, where
-marker locations are in unit of base pair(bp).
-
-`recomrate::Real=1`: recombination rate in unit of 1 cM/Mbp (centiMorgan per million base pair). Valid only if `isphysmap=true`.
-
-`epsilon::Real=0.01`: genotyping error probability.
-
-`seqerr::Real=0.001`: sequencing read error probability for GBS data.
-
-`chrpairing_phase::Integer=22`: chromosome pairing in parental phasing, with 22 being only bivalent formations and 44 being bivalent and quadrivalent formations.
-
-`chrpairing::Integer=44`: chromosome pairing in offspring decoding, with 22 being only bivalent formations and 44 being bivalent and quadrivalent formations.
-
-`chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of chromosome, with nothing denoting all chromosomes.
-Delete chromosome indices that are out of range.
-
-`snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
-to be considered, with nothing denoting all markers. within a chromosome, marker
-index starts from 1, and marker indices that are larger than the number of markers
-within the chromosome are deleted.
-
-`isparallel::Bool=false`: if true, multicore computing over chromosomes.
-
-`delmarker::Bool=true`: if true, delete markers during parental phasing.
-
-`delsiglevel::Real=0.05`: significance level for deleting markers.
-
-`maxstuck::Integer=5`: the max number of consecutive iterations that are rejected
-in a phasing run.
-
-`maxiter::Integer=30`: the max number of iterations in a phasing run.
-
-`minrun::Integer=3`: if the number of phasing runs having the same parental phases
-reaches minrun, phasing algorithm will stop before reaching the maxrun.
-
-`maxrun::Integer=10`: the max number of phasing runs.
-
-`byparent::Union{Nothing,Bool}=nothing`: if true, update parental phases
-parent by parent; if false, update parental phases one subpopulation by subpopulation. The nothing denotes that it is true if a connected component is a single F1 cross, and false otherwise.
-
-`byneighbor::Union{Nothing,Bool}=nothing`: if ture, udpate the combination of bivalent or multivalents in parents by their neighbors; if false, consider all the possible combinations. The nothing denotes that it is true if max ploidy>=6, and false otherwise.
-
-`refhapfile::Union{Nothing,AbstractString} = nothing`: reference haplotype file
-for setting absolute parental phases. It has the same format as the input genofile,
-except that parental genotypes are phased and offspring genotypes are ignored if exist.
-
-`correctthreshold::AbstractFloat=0.15`: a candidate marker is selected for
-parental error correction if the fraction of offspring genotypic error >= correctthreshold.
-
-`refinemap::Bool=false`: if true, refine marker map.
-
-`refineorder::Bool=false`: if true, refine marker mordering, valid only if refinemap=true
-
-`maxwinsize::Integer=50`: max size of sliding windown in map refinning.
-
-`inittemperature::Real=4`: initial temperature of simulated annealing in map refinning.
-
-`coolingrate::Real=0.5`: cooling rate of annealing temperature in map refinning.
-
-`stripdis::Real=20`: a chromosome end in map refinement is removed if it has a distance gap > stripdis
-(centiMorgan) and it contains less than 5% markers.
-
-`maxepsilon::Real=0.5`: markers in map refinement are removed it they have error
-rates > maxepsilon.
-
-`skeletonsize::Integer=50`: the number of markers in the skeleton map that is used
-to re-scale inter-map distances.
-
-`missingstring::AbstractString="NA"`: string code for missing value.
-
-`isplot::Bool=false`: if true, plot condprob for all offspring and save in
-the folder "outstem_plots".
-
-`outstem::Union{Nothing,AbstractString}="outstem"`: stem of output filenames.
-If nothing, no output files.
-
-`logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log"))`: log file or IO for writing log. If nothing, no log file.
-
-`workdir::AbstractString = pwd()`: directory for reading and writing files.
-
-`verbose::Bool=true`: if true, print messages on console.
+julia>names(PolyOrigin)
+```
+To get help on a name, type `?` and the name, e.g. polyOrigin
+```
+julia>?polyOrigin
+```
 
 # Output files
 
@@ -158,7 +70,7 @@ Output file | Description
 
 
 ## Example
-```julia-repl
+```
 julia> polyOrigin("geno.csv","ped.csv")
 ```
 
