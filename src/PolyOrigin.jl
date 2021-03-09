@@ -37,6 +37,8 @@ export
     # valentprob2df,statespace2df,stringjoin,readdlm2dict,parsestatespace,groupby,
     # getskeleton_seg,splitindex,gridpartition,
 
+    setAbsPhase!,readparenthaplo,setabsphase0!,
+
     # public
     PolyGeno, PolyAncestry,
     readPolyGeno,readPolyAncestry,savePolyAncestry,

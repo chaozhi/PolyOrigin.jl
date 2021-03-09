@@ -9,13 +9,13 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     isfile(refhapfile2) || @error(string(refhapfile," does not exist in workdir = ",workdir))
     ploidy = parentinfo[!,:ploidy]
     refhap=CSV.read(refhapfile2,DataFrame; delim=delim,comment=comment,missingstring=missingstring)
-    ncol = 3+size(parentinfo,1)
-    if size(refhap,2) >= ncol
-        refhap = refhap[:,1:ncol]
-    else
-        error(string("#columns = ", size(refhap,2) , ", smaller than ", ncol, " = 3+#parent"))
-
+    refcols = strip.(names(refhap))
+    refdict = Dict(refcols[4:end] .=> 4:length(refcols))
+    refii = [get(refdict, i, nothing) for i = parentinfo[!,:individual]]
+    if in(nothing, refii)
+        string("parents in polyancestray but not refhapfile: ",parentinfo[isnothing.(refii),:individual])
     end
+    refhap = refhap[!, vcat(1:3,refii)]
     for i=union(1:2,4:size(refhap,2))
         refhap[!,i] = string.(strip.(string.(refhap[!,i])))
     end
@@ -39,7 +39,7 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     # check marker and chr
     parentid = strip.(string.(names(refhap)[4:end]),' ')
     if parentid != parentinfo[!,:individual]
-        @warn string("parent IDs are inconsistent")
+        @error string("parent IDs are inconsistent")
     end
     refmap = refhap[!, 1:2]
     rename!(refmap,[:marker,:chromosome])
