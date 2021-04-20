@@ -1,7 +1,7 @@
 name = "PolyOrigin"
 uuid = "16de7d52-3108-11e9-206c-050f294fabfc"
 authors = ["Zheng, Chaozhi <chaozhi.zheng@wur.nl>"]
-version = "0.5.7"
+version = "0.5.8"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
