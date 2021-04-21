@@ -261,7 +261,7 @@ function polyPhase!(polygeno::PolyGeno;
         printconsole(io,verbose,msg)
         if byparent == nothing
             # byparent2 = size(subpolygeno.designinfo,1) > size(subpolygeno.parentinfo,1)
-            byparent2 = !(size(polygeno.designinfo,1) ==1 && size(polygeno.parentinfo,1) ==2)            
+            byparent2 = !(size(polygeno.designinfo,1) ==1 && size(polygeno.parentinfo,1) ==2)
             printconsole(io,verbose,string("set byparent=",byparent2))
         else
             byparent2 = byparent
@@ -559,7 +559,7 @@ function updatefhaplobvpair(fhaploindex::AbstractVector,
         # println("findex=",findex)
         newfphase = randfphase(findex,newfhaploindex,
             fhaploset,fhaploweight,epsilon,
-            bvpair,chrdose,priorspace,priorprocess,polygeno)
+            newbvpair,chrdose,priorspace,priorprocess,polygeno)
         if byparent
             b = .!(ismissing.(newfphase))
             newfhaploindex[findex][b] .= newfphase[b]
