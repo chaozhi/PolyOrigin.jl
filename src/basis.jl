@@ -186,7 +186,7 @@ end
 
 function logsumexp(a::AbstractVector)
     off, ind = findmax(a)
-    off == -Inf && return -Inf
+    isinf(off) && off<0 && (return -Inf)
     b = exp.(a .- off)
     b[ind] -= 1.0
     # using KahanSummation
