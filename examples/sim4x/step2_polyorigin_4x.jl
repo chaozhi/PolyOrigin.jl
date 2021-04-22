@@ -1,7 +1,7 @@
 # the following three lines are only for experimenting
-using Revise
-using Pkg
-Pkg.activate(joinpath(@__DIR__, "..",".."))
+# using Revise
+# using Pkg
+# Pkg.activate(joinpath(@__DIR__, "..",".."))
 
 # load the pakcage and set work directory
 using PolyOrigin
