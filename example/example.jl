@@ -1,3 +1,8 @@
+using Revise
+using Pkg
+Pkg.activate(joinpath(@__DIR__, "..",".."))
+
+
 using PolyOrigin
 cd(@__DIR__)
 pwd()
@@ -8,7 +13,6 @@ outstem = "example_output"
 @time polyancestry = polyOrigin(genofile, pedfile;
     refinemap=true,
     refineorder=true,
-    isplot=true,
     outstem,
 )
 
@@ -30,3 +34,6 @@ animCondprob(polyancestry;
     fps = 0.5,
     outfile = string(outstem,"_condprob.gif"),
 )
+
+# delete output files
+rm.(filter(x->occursin(outstem,x), readdir()))

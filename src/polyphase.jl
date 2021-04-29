@@ -942,10 +942,11 @@ function polybackward(fwlogpgeno::AbstractVector,fwlogpost::AbstractVector,
     orig = Vector{Union{Missing,Vector}}(missing,nseq)
     tseq = findall(.!ismissing.(fwlogpgeno))
     tend = tseq[end]
-    phase[tend]=rand(Categorical(exp.(fwlogpgeno[tend])))
+    pphase = exp.(fwlogpgeno[tend] .- logsumexp(fwlogpgeno[tend]))
+    phase[tend]=rand(Categorical(pphase))
     orig[tend]=[begin
         logpost=(fwlogpost[tend][k])[phase[tend],:]
-        [rand(Categorical(exp.(i))) for i=logpost]
+        [rand(Categorical(exp.(i .- logsumexp(i)))) for i=logpost]
     end for k=1:length(fwlogpost[tend])]
     for marker=length(tseq)-1:-1:1
         t=tseq[marker]
