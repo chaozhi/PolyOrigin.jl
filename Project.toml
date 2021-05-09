@@ -29,7 +29,7 @@ StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 [compat]
 CSV = "^0.8"
 Combinatorics = "^1.0"
-DataFrames = "^0.22"
+DataFrames = "^0.22, 1.1"
 DataStructures = "^0.18"
 Distributions = "^0.24"
 GR = "^0.54, 0.55"
