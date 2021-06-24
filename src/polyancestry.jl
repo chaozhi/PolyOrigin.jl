@@ -453,11 +453,14 @@ function parseparentgeno(parentgeno)
     groupdf = groupby(parentgeno, :chromosome)
     parentgeno = [begin
         haplo = split.(Matrix(i[!,4:end]),"|")
-        [[x=="missing" ? missing : parse(Int,x) for x in h] for h in haplo]
+        # [[x=="missing" ? missing : parse(Int,x) for x in h] for h in haplo]
+        [mytryparse.(Int, h) for h in haplo]
     end for i = groupdf]
     markermap2=[DataFrame(i) for i=groupby(markermap,:chromosome)]
     markermap2, parentgeno
 end
+
+mytryparse(T, str) = something(tryparse(T, str), missing)
 
 function parsecondprob_old(condprob)
     groupdf = groupby(condprob,1)
