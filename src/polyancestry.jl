@@ -453,7 +453,7 @@ function parseparentgeno(parentgeno)
     groupdf = groupby(parentgeno, :chromosome)
     parentgeno = [begin
         haplo = split.(Matrix(i[!,4:end]),"|")
-        map(x->parse.(Int,x),haplo)
+        [[x=="missing" ? missing : parse(Int,x) for x in h] for h in haplo]
     end for i = groupdf]
     markermap2=[DataFrame(i) for i=groupby(markermap,:chromosome)]
     markermap2, parentgeno
