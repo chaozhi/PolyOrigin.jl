@@ -24,8 +24,11 @@ function calacctau(dataid::String, isgbs::Bool, isrefine::Bool)
     acc, tau, polyancestry
 end
 
-@testset "Tetraploid" begin
+@testset "PolyOrigin" begin
     @testset "4x" begin
         @time include("test_4x_diallel.jl")
+    end
+    @testset "2x" begin
+        @time include("test_2x_diallel.jl")
     end
 end

@@ -8,7 +8,7 @@ A package for haplotype reconstruction in connected polyploid F1 populations
 
 ## Features
 
-- Apply to connected F1 in tetraploid (TODO for higher ploidy levels)
+- Apply to connected F1 in tetraploid (TODO for higher ploidy levels. Limited tests for diploids.)
 - Apply to SNP array and GBS data
 - Robust to dosage errors in SNP array data
 - Robust to dosage uncertainties in low read depth GBS data
