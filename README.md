@@ -78,4 +78,4 @@ julia> polyOrigin("geno.csv","ped.csv")
 
  If you use PolyOrigin in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Amadeu RR, Munoz PR, and Endelman JB. 2020. Haplotype reconstruction in connected tetraploid F1 populations. doi: https://doi.org/10.1101/2020.12.18.423519.*
+  *Zheng C, Amadeu RR, Munoz PR, and Endelman JB. 2021. Haplotype reconstruction in connected tetraploid F1 populations. https://doi.org/10.1093/genetics/iyab106
