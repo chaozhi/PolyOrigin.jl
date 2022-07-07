@@ -16,12 +16,12 @@ A package for haplotype reconstruction in connected polyploid F1 populations
 
 ## Installation
 
-From the julia (>=v1.6.5, 64-bit) REPL model, run
+From the julia (>=v1.6.5, 64-bit) REPL mode, run
 
 ```
 julia>]add https://github.com/chaozhi/PolyOrigin.jl
 ```
-where `]` enters Pkg REPL model.
+where `]` enters Pkg REPL mode.
 
 To update the package, run
 
@@ -39,7 +39,7 @@ julia>]up PolyOrigin
 
 ## Usage
 
-From the julia REPL model, run
+From the julia REPL mode, run
 ```
 julia>using PolyOrigin
 ```
