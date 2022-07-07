@@ -8,10 +8,6 @@ pwd()
 # run polyorigin
 genofile = "geno.csv"
 pedfile = "ped.csv"
-
-genofile = "PolyOrigin_geno modified.csv"
-pedfile = "PolyOrigin_ped.csv"
-
 outstem = "example_output"
 @time polyancestry = polyOrigin(genofile, pedfile;
     isphysmap =true,
