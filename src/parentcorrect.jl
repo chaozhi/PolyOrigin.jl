@@ -252,9 +252,8 @@ function getchrbadchange!(chrgenoprob::AbstractVector,chrbadsnp::AbstractMatrix,
                 else
                     @error string("unknown offspring data type: ",kind)
                 end
-                mismatch2=[collect(skipmissing(i)) for i=mismatch]
-                nlen=length.(mismatch2)
-                nerr=sum.(mismatch2)
+                mismatch2=[collect(skipmissing(i)) for i in mismatch]                                
+                nerr = [isempty(i) ? 0 : sum(i) for i in mismatch2]
                 newerr,newindex = findmin(nerr)
                 old = phasedgeno.parentgeno[chr][snp,p]
                 oldindex = findfirst([i == old for i=hhset])

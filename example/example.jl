@@ -8,10 +8,16 @@ pwd()
 # run polyorigin
 genofile = "geno.csv"
 pedfile = "ped.csv"
+
+genofile = "PolyOrigin_geno modified.csv"
+pedfile = "PolyOrigin_ped.csv"
+
 outstem = "example_output"
 @time polyancestry = polyOrigin(genofile, pedfile;
-    refinemap=true,
-    refineorder=true,
+    isphysmap =true,
+    recomrate  = 1.0,
+    refinemap=false,
+    # refineorder=true,
     outstem,
 )
 
@@ -28,11 +34,12 @@ println(acc)
 
 # plot conditional probabilities
 plotCondprob(polyancestry, truegeno = truegeno, offspring = 1)
-animCondprob(polyancestry;
-    truegeno = truegeno,
-    fps = 0.5,
-    outfile = string(outstem,"_condprob.gif"),
-)
+# animCondprob(polyancestry;
+#     truegeno = truegeno,
+#     fps = 0.5,
+#     outfile = string(outstem,"_condprob.gif"),
+# )
 
 # delete output files
-rm.(filter(x->occursin(outstem,x), readdir()))
+# rm.(filter(x->occursin(outstem,x), readdir()))
+
