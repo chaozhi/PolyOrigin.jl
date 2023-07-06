@@ -1,3 +1,4 @@
+
 cd(@__DIR__)
 dataid = "4x_diallel"
 isgbs = false

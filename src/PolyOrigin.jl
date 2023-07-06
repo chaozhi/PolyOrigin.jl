@@ -14,7 +14,7 @@ using LinearAlgebra, SparseArrays, Random, Statistics
 using Pkg, DelimitedFiles, Printf,Serialization, Dates
 using DataFrames, CSV, Combinatorics, StatsBase
 using DataStructures, Distributions, Distributed
-using LightGraphs, GraphRecipes, StatsPlots,Plots; gr()
+using LightGraphs, GraphRecipes, StatsPlots,Plots
 
 export
     # private function
@@ -36,8 +36,7 @@ export
     # setAbsPhase!,savegenodata,savegenoprob,readTruegeno!,
     # valentprob2df,statespace2df,stringjoin,readdlm2dict,parsestatespace,groupby,
     # getskeleton_seg,splitindex,gridpartition,
-
-    setAbsPhase!,readparenthaplo,setabsphase0!,
+    # setAbsPhase!,readparenthaplo,setabsphase0!,
 
     # public
     PolyGeno, PolyAncestry,

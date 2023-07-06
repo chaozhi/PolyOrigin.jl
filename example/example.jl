@@ -1,7 +1,7 @@
 
-# using Revise
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__, ".."))
+using Revise
+using Pkg
+Pkg.activate(joinpath(@__DIR__, ".."))
 
 using PolyOrigin
 cd(@__DIR__)
@@ -40,4 +40,3 @@ plotCondprob(polyancestry, truegeno = truegeno, offspring = 1)
 
 # delete output files
 # rm.(filter(x->occursin(outstem,x), readdir()))
-
