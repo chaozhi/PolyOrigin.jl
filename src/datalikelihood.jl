@@ -130,7 +130,7 @@ end
 
 # for one offspring in one linkage group
 # offdose is a list of read pairs (AbstractVector) or a list of dosages (Integer)
-function caldataprob(offdose::AbstractVector,popid::String,ploidy::Integer,
+function caldataprob(offdose::AbstractVector,popid::AbstractString,ploidy::Integer,
     deriveddose::AbstractDict,epsiloninfo::Union{Real,AbstractVector})
     nsnp = length(offdose)
     if typeof(epsiloninfo) <: Real

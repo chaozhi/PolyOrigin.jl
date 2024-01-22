@@ -1,7 +1,6 @@
-
-using Revise
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
+# using Revise
+# using Pkg
+# Pkg.activate(joinpath(@__DIR__, ".."))
 
 using PolyOrigin
 cd(@__DIR__)
@@ -12,8 +11,6 @@ genofile = "geno.csv"
 pedfile = "ped.csv"
 outstem = "example_output"
 @time polyancestry = polyOrigin(genofile, pedfile;
-    isphysmap =true,
-    recomrate  = 1.0,
     refinemap=false,
     # refineorder=true,
     outstem,

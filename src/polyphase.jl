@@ -789,7 +789,7 @@ function randbvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
     epsilon::Union{Real,AbstractVector},chrdose::AbstractMatrix,priorspace::AbstractDict,
     priorprocess::AbstractDict,polygeno::PolyGeno,popidls;isrand::Bool=true)
     fhaplo=getfhaplo(fhaploindex,fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)
+    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)    
     bvpairprop = getbvpairprop(priorspace,polygeno)
     logllist = calmarglogl(epsilon,deriveddose,chrdose,priorspace,
         priorprocess,polygeno,bvpairprop)

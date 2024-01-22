@@ -6,6 +6,11 @@
 
 A package for haplotype reconstruction in connected polyploid F1 populations
 
+See [PolyOriginCmd](https://github.com/chaozhi/PolyOriginCmd) for running PolyOrigin in command line interface
+
+See [PolyOriginR](https://github.com/chaozhi/PolyOriginR) for running PolyOrigin in R
+
+
 ## Features
 
 - Apply to connected F1 in tetraploid (TODO for higher ploidy levels. Limited tests for diploids.)

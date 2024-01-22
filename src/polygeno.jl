@@ -391,7 +391,7 @@ function getdesigninfor(popparent::DataFrame,parentinfo::DataFrame;
         c>0 && (res[i,c]+=1)
     end
     df=DataFrame(res,Symbol.(parentinfo[!,:individual]))
-    insertcols!(df, 1, :population=>popparent[!,:population])
+    insertcols!(df, 1, :population=> convert.(String,popparent[!,:population]))
     df
 end
 
