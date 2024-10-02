@@ -411,8 +411,8 @@ function parentalphasing_chr(polygeno::PolyGeno, chr::Integer,
 end
 
 function index2haplo(fhaploset::AbstractVector,haploindex::AbstractVector)
-    [hcat(map((x,y)->ismissing(y) ? missings(length(x[1])) : x[y],
-        fhaploset[i],haploindex[i])...)' for i=1:length(fhaploset)]
+    [reduce(hcat,map((x,y)->ismissing(y) ? missings(length(x[1])) : x[y],
+        fhaploset[i],haploindex[i]))' for i=1:length(fhaploset)]
 end
 
 function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractVector,
