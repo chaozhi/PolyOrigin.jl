@@ -269,7 +269,7 @@ function getdict2group(priorspace::AbstractDict,polygeno::PolyGeno)
     end for popid = polygeno.designinfo[!,:population]])
 end
 
-function offposteriordecode(dataprob::AbstractMatrix,popid::String,
+function offposteriordecode(dataprob::AbstractMatrix,popid::AbstractString,
     priorspace::AbstractDict,priorprocess::AbstractDict,
     bvlist::AbstractVector)
     condstates = priorspace[popid]["condstate"]
@@ -310,7 +310,7 @@ function offposteriordecode(dataprob::AbstractMatrix,popid::String,
     permutedims(hcat(res...))
 end
 
-function getgenoprob(decode::AbstractMatrix,popid::String,
+function getgenoprob(decode::AbstractMatrix,popid::AbstractString,
     priorspace::AbstractDict,tran2group::AbstractMatrix)
     logl = decode[:,2]
     logmax = logsumexp(logl)

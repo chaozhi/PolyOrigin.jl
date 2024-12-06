@@ -1,6 +1,4 @@
-# using Revise
-# using Pkg
-# Pkg.activate(joinpath(@__DIR__,".."))
+
 using PolyOrigin
 using Plots
 using Documenter

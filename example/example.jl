@@ -1,6 +1,5 @@
-# using Revise
 # using Pkg
-# Pkg.activate(joinpath(@__DIR__, ".."))
+# Pkg.develop(path=abspath(@__DIR__, ".."))
 
 using PolyOrigin
 cd(@__DIR__)
@@ -10,11 +9,10 @@ pwd()
 genofile = "geno.csv"
 pedfile = "ped.csv"
 outstem = "example_output"
-@time polyancestry = polyOrigin(genofile, pedfile;
-    refinemap=false,
-    # refineorder=true,
+@time polyancestry = polyOrigin(genofile, pedfile;    
+    refinemap=false,    
     outstem,
-)
+);
 
 # plot relative frequencies of valent configurations
 polyancestry = readPolyAncestry(outstem*"_polyancestry.csv")
@@ -29,11 +27,11 @@ println(acc)
 
 # plot conditional probabilities
 plotCondprob(polyancestry, truegeno = truegeno, offspring = 1)
-# animCondprob(polyancestry;
-#     truegeno = truegeno,
-#     fps = 0.5,
-#     outfile = string(outstem,"_condprob.gif"),
-# )
+animCondprob(polyancestry;
+    truegeno = truegeno,
+    fps = 0.5,
+    outfile = string(outstem,"_condprob.gif"),
+)
 
 # delete output files
-# rm.(filter(x->occursin(outstem,x), readdir()))
+rm.(filter(x->occursin(outstem,x), readdir()))

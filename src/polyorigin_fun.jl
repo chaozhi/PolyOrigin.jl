@@ -316,7 +316,7 @@ function polyOrigin!(polygeno::PolyGeno;
     end
     if size(polygeno.parentinfo,1)>1
         gdesign= PolyOrigin.plotdesign(polygeno)
-        verbose && display(gdesign)
+        # verbose && display(gdesign)
         if isplot && (!isnothing(outstem))
             figdir = joinpath(workdir, outstem * "_plots")
             isdir(figdir) || mkdir(figdir)

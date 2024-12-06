@@ -447,13 +447,14 @@ function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractV
     loglhis =[logl]
     nstuck =0
     for it=1:maxiter
+        startt = time()
         newfhaploindex,newbvpair,newsiblogl,newlogl=updatefhaplobvpair(fhaploindex,
             bvpair,siblogl,fhaploset,fhaploweight,epsilon,chrdose,
             priorspace,priorprocess,polygeno,byparent,byneighbor)
         logl = loglhis[end]
         accept = newlogl >= logl
         if accept
-            newlogl == logl ? nstuck += maxstuck : nstuck=0
+            newlogl == logl ? nstuck += max(1,maxstuck-1) : nstuck=0
             fhaploindex,bvpair,siblogl,logl = newfhaploindex,newbvpair,newsiblogl,newlogl
         else
             nstuck +=1
@@ -469,23 +470,25 @@ function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractV
             ", logl=",round(logl,digits=2),
             ", epsilon=", round(epsilon,digits=4),
             ", nstuck=", nstuck,
-            ", ndel=", ndel
-            )
+            ", ndel=", ndel,            
+        )
         if nstuck >= maxstuck || it == maxiter
             # verbose && print("\u1b[1K")
+            msg *= string(", tused=",round(time()-startt,digits=1),"s")
             printconsole(io,verbose,msg)
             break
         else
-            if nstuck==1 && delmarker
+            if nstuck>0 && delmarker
                 epsilon=first(updateepsilon(epsilon,bvpair,fhaploindex,fhaploset,chrdose,
                     priorspace,priorprocess,polygeno))
                 dataprobset = caldataprobset(fhaploindex,fhaploset,epsilon,
                     chrdose,priorspace,polygeno)
                 # priorprocess is modified
-                polymarkerdel!(fhaploindex,fhaploset,dataprobset,bvpair,
+                delsnps = polymarkerdel!(fhaploindex,fhaploset,dataprobset,bvpair,
                     priorspace, priorprocess,polygeno,delsiglevel=delsiglevel)
-                delmarker = false
+                isempty(delsnps) && (delmarker = false)
             end
+            msg *= string(", tused=",round(time()-startt,digits=1),"s")
             printconsole(io,verbose,msg)
             # verbose && print("\u1b[K",msg,"\u1b[1G")
         end
@@ -983,6 +986,8 @@ function normalizelogl(logllist)
 end
 
 function normfwpost(sitelogpost::AbstractVector,weight::AbstractVector)
+    # sitelogpost[k]: a mstrix of size #phases x #individuals in population k
+    # logpost is a matrix of size #phases x #individuals
     logpost=hcat(sitelogpost...)
     sibscale=logsumexp.(logpost)
     # cal logpgeno

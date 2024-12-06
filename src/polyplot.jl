@@ -146,8 +146,7 @@ see [`plotCondprob`](@ref) for keyargs.
 
 """
 function animCondprob(polyancestry::PolyAncestry;
-    fps::Real=1,
-    offspring::Union{Nothing,Integer}=nothing,
+    fps::Real=1,    
     ishaploprob::Bool=true,
     colorgradient::ColorGradient=cgrad([:white,:blue,:red]),
     left_margin = :match,
@@ -160,7 +159,7 @@ function animCondprob(polyancestry::PolyAncestry;
     anim = Animation()
     n1 = ceil(Int,fps)
     n2 = fps == 0 ? 1 : ceil(Int,1/fps)
-    @time for off=1:noff
+    for off=1:noff
         plotCondprob(polyancestry; offspring=off,
             ishaploprob, colorgradient,
             left_margin, bottom_margin,

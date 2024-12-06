@@ -208,7 +208,7 @@ end
 
 
 function upoffmarglogl!(loglgrid::AbstractMatrix,
-    dataprob::AbstractMatrix,popid::String,
+    dataprob::AbstractMatrix,popid::AbstractString,
     priorspace::AbstractDict,priorprocess::AbstractDict,bvprop::AbstractVector)
     condstates = priorspace[popid]["condstate"]
     keyls = priorspace[popid]["valentkey"]
@@ -223,7 +223,7 @@ function upoffmarglogl!(loglgrid::AbstractMatrix,
 end
 
 # for one offspring in one linkage group
-function caloffmarglogl(dataprob::AbstractMatrix,popid::String,
+function caloffmarglogl(dataprob::AbstractMatrix,popid::AbstractString,
     priorspace::AbstractDict,priorprocess::AbstractDict,bvprop::AbstractVector)
     condstates = priorspace[popid]["condstate"]
     keyls = priorspace[popid]["valentkey"]

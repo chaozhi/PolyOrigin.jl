@@ -18,25 +18,25 @@ using LightGraphs, GraphRecipes, StatsPlots,Plots
 
 export
     # private function
-    # readDesign,parsemarkermap!,splitindex,parseinputgeno,
-    # getstatespace,parseprobcell,calpermhomolog,connected_parents,
-    # calpermhomolog,calnphaseerr,gethomologdict,getstateorder,ordergenoprob!,
-    # printconsole,calabsolutehap,parentgeno2df,condprob2df,calabsaccuracy0,
-    # caldataprobset,getpriorprocess,randbvpair,updateepsilonls!, updatedistance!,
-    # delsnpeps!,stripchrend!,getskeleton_seg,setmarkerincl!,setabsphase!,
-    # calparentacc,calancestryacc,toindexancestry,ancestrycall,getsubPolyGeno,
-    # readparenthaplo,calabsolutehap,gethomologdict,calmapkendall,
-    # setabsphase0!,calabsaccuracy0,kindofgeno,chrreconstruct,getdict2group,
-    # randinitbvpair,getfhaplo,getderiveddose,getbvpairprop,calmarglogl,
-    # caldataprob,caldataprob_prob,
-    # calchrdoseprob,getpriorstatespace,
+    readDesign,parsemarkermap!,splitindex,parseinputgeno,
+    getstatespace,parseprobcell,calpermhomolog,connected_parents,
+    calpermhomolog,calnphaseerr,gethomologdict,getstateorder,ordergenoprob!,
+    printconsole,calabsolutehap,parentgeno2df,condprob2df,calabsaccuracy0,
+    caldataprobset,getpriorprocess,randbvpair,updateepsilonls!, updatedistance!,
+    delsnpeps!,stripchrend!,getskeleton_seg,setmarkerincl!,setabsphase!,
+    calparentacc,calancestryacc,toindexancestry,ancestrycall,getsubPolyGeno,
+    readparenthaplo,calabsolutehap,gethomologdict,calmapkendall,
+    setabsphase0!,calabsaccuracy0,kindofgeno,chrreconstruct,getdict2group,
+    randinitbvpair,getfhaplo,getderiveddose,getbvpairprop,calmarglogl,
+    caldataprob,caldataprob_prob,
+    calchrdoseprob,getpriorstatespace,
 
     # public
-    # polyPhase,polyPhase!,polyMapRefine!,polyReconstruct!,
-    # setAbsPhase!,savegenodata,savegenoprob,readTruegeno!,
-    # valentprob2df,statespace2df,stringjoin,readdlm2dict,parsestatespace,groupby,
-    # getskeleton_seg,splitindex,gridpartition,
-    # setAbsPhase!,readparenthaplo,setabsphase0!,
+    polyPhase,polyPhase!,polyMapRefine!,polyReconstruct!,
+    setAbsPhase!,savegenodata,savegenoprob,readTruegeno!,
+    valentprob2df,statespace2df,stringjoin,readdlm2dict,parsestatespace,groupby,
+    getskeleton_seg,splitindex,gridpartition,
+    setAbsPhase!,readparenthaplo,setabsphase0!,
 
     # public
     PolyGeno, PolyAncestry,
