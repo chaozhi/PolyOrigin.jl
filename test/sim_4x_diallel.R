@@ -1,7 +1,7 @@
-# Installing and using the PedigreeSimR to simulate the cross and GBS data
-# devtools::install_github("rramadeu/PedigreeSimR")
-library(PedigreeSimR)
-packageVersion("PedigreeSimR")
+
+# devtools::install_github("jendelman/diaQTL",force=TRUE)
+# devtools::install_github("rramadeu/MultiPolyPop",force=TRUE)
+library(MultiPolyPop)
 
 library(rstudioapi)    
 workdir=dirname(rstudioapi::getActiveDocumentContext()$path)

@@ -36,7 +36,7 @@ end
 
 function printconsole(io::Union{Nothing,IO},verbose::Bool,msg::AbstractString)
     verbose && @info(msg)
-    if io!=nothing
+    if !isnothing(io)
         write(io,string(msg,"\n"))
         flush(io)
     end
@@ -72,20 +72,20 @@ see keyargs in polyPhase!(polygeno::PolyGeno, keyargs...)
 function polyPhase(genofile::AbstractString,pedfile::AbstractString;
     delimchar::AbstractChar=',', missingstring::AbstractString="NA",
     commentstring::AbstractString="#",
-    epsilon::Real=0.01,seqerr::Real=0.001,
+    doseerr::Real=0.01,seqerr::Real=0.001,
     chrpairing_phase::Integer=22,
     byparent::Union{Nothing,Bool}=nothing,
     byneighbor::Union{Nothing,Bool}=nothing,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=false,
+    isparallel::Bool=true,
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,maxiter::Integer=30,
     minrun::Integer=3,maxrun::Integer=10,
     refhapfile::Union{Nothing,AbstractString} = nothing,
     outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log")),
+    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
     verbose::Bool=true)
     polygeno = readPolyGeno(genofile,pedfile,
@@ -93,7 +93,7 @@ function polyPhase(genofile::AbstractString,pedfile::AbstractString;
         missingstring=missingstring,
         commentstring=commentstring,
         workdir=workdir,verbose=false)
-    polyPhase!(polygeno, epsilon=epsilon,seqerr=seqerr,
+    polyPhase!(polygeno, doseerr=doseerr,seqerr=seqerr,
         chrpairing_phase=chrpairing_phase,
         chrsubset=chrsubset,
         snpsubset=snpsubset,
@@ -120,7 +120,7 @@ with  phasedgeno.parentgeno and polygeno.parentgeno being phased .
 
 # Keyword arguments
 
-`epsilon::Real=0.01`: genotypic error probability.
+`doseerr::Real=0.01`: genotypic error probability.
 
 `seqerror::Real=0.001`: base sequencing error probability for GBS data.
 
@@ -136,7 +136,7 @@ to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
 
-`isparallel::Bool=false`: if true, multicore computing over chromosomes.
+`isparallel::Bool=true`: if true, multicore computing over chromosomes.
 
 `delmarker::Bool=true`: if true, delete markers during parental phasing.
 
@@ -170,7 +170,7 @@ except that parental genotypes are phased and offspring genotypes are ignored if
 `outstem::Union{Nothing,AbstractString}="outstem"`: stem of output filenames.
 If nothing, no output files.
 
-`logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log"))`:
+`logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log"))`:
 log file or IO for writing log. If nothing, no log file.
 
 `workdir::AbstractString = pwd()`: directory for reading and writing files.
@@ -179,13 +179,13 @@ log file or IO for writing log. If nothing, no log file.
 
 """
 function polyPhase!(polygeno::PolyGeno;
-    epsilon::Real=0.01,seqerr::Real=0.001,
+    doseerr::Real=0.01,seqerr::Real=0.001,
     chrpairing_phase::Integer=22,
     byparent::Union{Nothing,Bool}=nothing,
     byneighbor::Union{Nothing,Bool}=nothing,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=false,
+    isparallel::Bool=true,
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,maxiter::Integer=30,
@@ -193,7 +193,7 @@ function polyPhase!(polygeno::PolyGeno;
     refhapfile::Union{Nothing,AbstractString} = nothing,
     missingstring::AbstractString="NA",
     outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log")),
+    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
     verbose::Bool=true)
     starttime = time()
@@ -207,16 +207,16 @@ function polyPhase!(polygeno::PolyGeno;
             io=logfile
         end
     end
-    printconsole(io,verbose,string("PolyOrigin, polyPhase, logfile=", logfile, ", ", Dates.now()))
+    printconsole(io,verbose,string("polyPhase!, logfile=", logfile, ", ", Dates.now()))
     minrun > maxrun && (minrun = maxrun)
     msg = string("list of option values: \n",
-        "epsilon = ", epsilon, "\n",
+        "doseerr = ", doseerr, "\n",
         "seqerr = ",seqerr,"\n",
         "chrpairing_phase = ",chrpairing_phase, "\n",
-        "byparent = ", byparent == nothing ? "true for simple biparental cross" : byparent,"\n",
-        "byneighbor = ", byneighbor == nothing ? "true for max(ploidy) >= 6" : byneighbor,"\n",
-        "chrsubset = ", chrsubset == nothing ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", snpsubset == nothing ? "all markers" : snpsubset,"\n",
+        "byparent = ", byparent,"\n",
+        "byneighbor = ", isnothing(byneighbor) ? "true for max(ploidy) >= 6" : byneighbor,"\n",
+        "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
+        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",
         "isparallel = ", isparallel, "\n",
         "delmarker = ", delmarker, "\n",
         "delsiglevel = ", delsiglevel, "\n",
@@ -226,21 +226,21 @@ function polyPhase!(polygeno::PolyGeno;
         "maxrun = ",maxrun,"\n",
         "refhapfile = ",refhapfile,"\n",
         "missingstring = ",missingstring,"\n",
-        "outstem = ",outstem == nothing ? "no output files" : outstem,"\n",
+        "outstem = ",isnothing(outstem) ? "no output files" : outstem,"\n",
         "logfile = ",io,"\n",
         "workdir = ",workdir,"\n",
         "verbose = ",verbose)
-    printconsole(io,false,msg)
+    printconsole(io,verbose,msg)
     msg = string("data: #pop=", size(polygeno.designinfo,1),
         ", #parent=",size(polygeno.parentinfo,1),
         ", #offspring=",size(polygeno.offspringinfo,1),
         ", #chr=",length(polygeno.markermap),
         ", #marker=",sum(size.(polygeno.markermap,1)))
     printconsole(io,verbose,msg)
-    if chrsubset!=nothing
+    if !isnothing(chrsubset)
         verbose && @info string("chrsubset=",chrsubset)
     end
-    if snpsubset!=nothing
+    if !isnothing(snpsubset)
         verbose && @info string("snpsubset=",snpsubset)
     end
     getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
@@ -259,21 +259,24 @@ function polyPhase!(polygeno::PolyGeno;
         pp = [i<length(pp) ? string(pp[i],", ") : pp[i] for i=1:length(pp)]
         msg = string("phasing connected parents: ", string(pp...))
         printconsole(io,verbose,msg)
-        if byparent == nothing
+        if isnothing(byparent)
             # byparent2 = size(subpolygeno.designinfo,1) > size(subpolygeno.parentinfo,1)
-            byparent2 = !(size(polygeno.designinfo,1) ==1 && size(polygeno.parentinfo,1) ==2)
+            b1 = max(subpolygeno.parentinfo[!,:ploidy]...) <= 4
+            b2 = size(subpolygeno.parentinfo,2) ==2
+            b3 = size(subpolygeno.designinfo,1) ==1
+            byparent2 = !( b1 && b2 && b3)
             printconsole(io,verbose,string("set byparent=",byparent2))
         else
             byparent2 = byparent
         end
-        if byneighbor == nothing
+        if isnothing(byneighbor)
             # byparent2 = size(subpolygeno.designinfo,1) > size(subpolygeno.parentinfo,1)
             byneighbor2 = max(subpolygeno.parentinfo[!,:ploidy]...) >=6
             # printconsole(io,verbose,string("set byneighbor=",byneighbor2))
         else
             byneighbor2 = byneighbor
         end
-        phases =parentalphasing_allchr(subpolygeno,epsilon,chrpairing_phase,
+        phases =parentalphasing_allchr(subpolygeno,doseerr,chrpairing_phase,
             byparent2,byneighbor2,delmarker,delsiglevel,
             maxstuck,maxiter,minrun,maxrun,isparallel,io,verbose)
         push!(res,phases)
@@ -291,7 +294,7 @@ function polyPhase!(polygeno::PolyGeno;
             join(sort(string.(delmarker[!,:marker])),", "))
         printconsole(io,verbose,msg)
     end
-    if refhapfile != nothing
+    if !isnothing(refhapfile)
         try
             setAbsPhase!(refhapfile,polygeno,
                 workdir=workdir,io=io,verbose=verbose)
@@ -310,7 +313,7 @@ function polyPhase!(polygeno::PolyGeno;
         printconsole(io,verbose,msg)
     end
     printconsole(io,verbose,string("End, ", Dates.now(),", time elapsed = ",
-        round(time()-starttime), " seconds by polyPhase"))
+        round(time()-starttime), " seconds by polyPhase!"))
     if typeof(logfile) <: AbstractString
         close(io)
     elseif typeof(logfile) <: IO
@@ -332,7 +335,7 @@ function setparentphase!(polygeno::PolyGeno,isdel::AbstractVector)
 end
 
 function parentalphasing_allchr(polygeno::PolyGeno,
-    epsilon::Real,chrpairing_phase::Integer,
+    doseerr::Real,chrpairing_phase::Integer,
     byparent::Bool,byneighbor::Bool,
     delmarker::Bool,delsiglevel::Real,
     maxstuck::Integer,maxiter::Integer,
@@ -342,7 +345,7 @@ function parentalphasing_allchr(polygeno::PolyGeno,
     parenthaplo= Vector{Vector}(undef,nchr)
     if isparallel && nprocs()>1
         polygenols=[getsubPolyGeno(polygeno,chrsubset=[chr]) for chr=1:nchr]
-        res = pmap(x->parentalphasing_chr(x,1,epsilon,chrpairing_phase,
+        res = pmap(x->parentalphasing_chr(x,1,doseerr,chrpairing_phase,
             delmarker,delsiglevel,maxstuck,maxiter,
             minrun,maxrun,byparent,byneighbor,nothing,verbose),polygenols)
         for chr=1:nchr
@@ -351,9 +354,10 @@ function parentalphasing_allchr(polygeno::PolyGeno,
             flush(io)
             close(iobuffer)
         end
+        @everywhere GC.gc()
     else
         for chr=1:nchr
-            parenthaplo[chr]=first(parentalphasing_chr(polygeno,chr,epsilon,chrpairing_phase,
+            parenthaplo[chr]=first(parentalphasing_chr(polygeno,chr,doseerr,chrpairing_phase,
                 delmarker,delsiglevel,maxstuck,maxiter,
                 minrun,maxrun,byparent,byneighbor,io,verbose))
         end
@@ -363,19 +367,20 @@ function parentalphasing_allchr(polygeno::PolyGeno,
 end
 
 function parentalphasing_chr(polygeno::PolyGeno, chr::Integer,
-    epsilon::Real,chrpairing_phase::Integer,
+    doseerr::Real,chrpairing_phase::Integer,
     delmarker::Bool,delsiglevel::Real,
     maxstuck::Integer,maxiter::Integer,
     minrun::Integer,maxrun::Integer,
     byparent::Bool, byneighbor::Bool,
     io::Union{Nothing,IO},verbose::Bool)
     starttime = time()
-    io===nothing && (io=IOBuffer(append=true))
+    isnothing(io) && (io=IOBuffer(append=true))
     priorspace = getpriorstatespace(polygeno,chrpairing_phase)
     chrdose=polygeno.offspringgeno[chr]
     nmarker = size(polygeno.markermap[chr],1)
     chrid = polygeno.markermap[chr][1,:chromosome]
-    priorprocess = getpriorprocess(polygeno,chr,chrpairing_phase)
+    maxvalent = max(digits(chrpairing_phase)...)
+    priorprocess = getpriorprocess(polygeno,chr,maxvalent)
     fhaploset, fhaploweight=calparenthaploset(polygeno,chr)
     phaselogl = Vector{Float64}(undef,0)
     phaseres = Vector{Vector}(undef,0)
@@ -385,7 +390,7 @@ function parentalphasing_chr(polygeno::PolyGeno, chr::Integer,
         for i = 1:batchsize
             run+=1
             # phaseres is a list of (fhaploindex, bvpair,logl, loglhis)
-            res = parentalphasing_local(fhaploset,fhaploweight,epsilon,chrdose,
+            res = parentalphasing_local(fhaploset,fhaploweight,doseerr,chrdose,
                 priorspace,priorprocess,polygeno,delmarker,delsiglevel,
                 maxstuck,maxiter,byparent,byneighbor,chrid,run,io,verbose)
             push!(phaseres,res)
@@ -398,8 +403,8 @@ function parentalphasing_chr(polygeno::PolyGeno, chr::Integer,
         dis = [sum(last(calpermhomolog(haplist[best],est))) for est=haplist]
         ncount = sum(dis .== 0)
         if (ncount >= minrun) || run>=maxrun
-            msg = string("#chr=",chrid,
-                nprocs()>1 ? string(", procs=",myid()) : "",
+            msg = string("chr=",chrid,
+                # nprocs()>1 ? string(", p=",myid()) : "",
                 ", #marker=",nmarker,
                 ", done, elapsed=", round(time()-starttime), " seconds",
                 ", #mismatch(run",best," ~ runs) = ", dis)
@@ -416,81 +421,77 @@ function index2haplo(fhaploset::AbstractVector,haploindex::AbstractVector)
 end
 
 function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    epsilon::Real,chrdose::AbstractMatrix,
-    priorspace::AbstractDict,inputpriorprocess::AbstractDict,polygeno::PolyGeno,
+    doseerr::Real,chrdose::AbstractMatrix,
+    priorspace::AbstractDict,priorprocess::AbstractDict,polygeno::PolyGeno,
     delmarker::Bool,delsiglevel::Real,
     maxstuck::Integer,maxiter::Integer,byparent::Bool,byneighbor::Bool,
     chrid::AbstractString,run::Integer,io::IO,verbose::Bool)
-    priorprocess = deepcopy(inputpriorprocess)
+    # priorprocess = deepcopy(inputpriorprocess)
     # fhaploindex=[[rand(Categorical(i)) for i=j] for j=fhaploweight]
     fhaploindex=[Vector{Union{Missing,Int}}([rand(Categorical(i)) for i=j]) for j=fhaploweight]
     noff = size(polygeno.offspringinfo,1)
     bvpair = randinitbvpair(priorspace,polygeno)
-    siblogl = zeros(noff)
+    siblogl = repeat([-Inf],noff)
     popidls = keys(priorspace)
+    doseerrls = [doseerr for i=1:size(chrdose,1)]
     if byneighbor
-        updatebvpair!(bvpair, siblogl,fhaploindex,fhaploset,epsilon,chrdose,priorspace,
+        updatebvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,priorspace,
             priorprocess,polygeno,popidls)
     else
-        randbvpair!(bvpair, siblogl,fhaploindex,fhaploset,epsilon,chrdose,priorspace,
+        randbvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,priorspace,
             priorprocess,polygeno,popidls)
     end
     logl = sum(siblogl)
-    # msg = string("#chr=",chrid,", run=",run, ", it=0, logl=",round(logl,digits=2))
-    # printconsole(io,verbose,msg)
-    # https://stackoverflow.com/questions/24492429/julia-controlling-where-cursor-is-in-printed-output
-    # verbose && print(string(msg, "\r")) # "\r" go the first column
-    # http://julia-programming-language.2336112.n4.nabble.com/How-to-flush-output-of-print-td19401.html
-    # print(io, "\u1b[1G")   # go to first column
-    # print(io, "\u1b[K")    # clear the rest of the line
-    # verbose && print("\u1b[K",msg,"\u1b[1G")
     loglhis =[logl]
-    nstuck =0
-    for it=1:maxiter
+    nstuck = 0
+    for it=1:maxiter        
         startt = time()
         newfhaploindex,newbvpair,newsiblogl,newlogl=updatefhaplobvpair(fhaploindex,
-            bvpair,siblogl,fhaploset,fhaploweight,epsilon,chrdose,
+            bvpair,siblogl,fhaploset,fhaploweight,doseerr,chrdose,
             priorspace,priorprocess,polygeno,byparent,byneighbor)
         logl = loglhis[end]
         accept = newlogl >= logl
         if accept
-            newlogl == logl ? nstuck += max(1,maxstuck-1) : nstuck=0
+            newlogl == logl ? nstuck += (maxstuck-1) : nstuck=0
             fhaploindex,bvpair,siblogl,logl = newfhaploindex,newbvpair,newsiblogl,newlogl
         else
             nstuck +=1
             cond=all(map((x,y)->all(skipmissing(x .== y)),newfhaploindex,fhaploindex))
             cond && (nstuck += 1)
-        end
-        push!(loglhis,logl)
-        incl = first(values(priorprocess)).markerincl
-        ndel= length(incl)-sum(incl)
-        msg = string("#chr=",chrid,
-            nprocs()>1 ? string(", procs=",myid()) : "",
-            ", run=", run,", it=", it,
-            ", logl=",round(logl,digits=2),
-            ", epsilon=", round(epsilon,digits=4),
-            ", nstuck=", nstuck,
-            ", ndel=", ndel,            
-        )
-        if nstuck >= maxstuck || it == maxiter
-            # verbose && print("\u1b[1K")
-            msg *= string(", tused=",round(time()-startt,digits=1),"s")
-            printconsole(io,verbose,msg)
-            break
-        else
-            if nstuck>0 && delmarker
-                epsilon=first(updateepsilon(epsilon,bvpair,fhaploindex,fhaploset,chrdose,
-                    priorspace,priorprocess,polygeno))
-                dataprobset = caldataprobset(fhaploindex,fhaploset,epsilon,
-                    chrdose,priorspace,polygeno)
-                # priorprocess is modified
-                delsnps = polymarkerdel!(fhaploindex,fhaploset,dataprobset,bvpair,
-                    priorspace, priorprocess,polygeno,delsiglevel=delsiglevel)
-                isempty(delsnps) && (delmarker = false)
+        end                        
+        msg = string("chr=",chrid,", run=", run,", it=", it)                 
+        if nstuck>0 && delmarker
+            doseerr=first(updatedoseerr(doseerr,bvpair,fhaploindex,fhaploset,
+                priorspace,priorprocess,chrdose,polygeno))
+            doseerrls = [doseerr for i=1:size(chrdose,1)]
+            # priorprocess is modified
+            delsnps = polymarkerdel!(fhaploindex,fhaploset,bvpair,priorspace,
+                priorprocess, chrdose, doseerrls, polygeno; delsiglevel)  
+            ndel = length(delsnps)              
+            if byneighbor
+                updatebvpair!(bvpair,siblogl,fhaploindex,fhaploset,
+                    doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
+            else
+                randbvpair!(bvpair,siblogl,fhaploindex,fhaploset,
+                    doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
             end
-            msg *= string(", tused=",round(time()-startt,digits=1),"s")
-            printconsole(io,verbose,msg)
-            # verbose && print("\u1b[K",msg,"\u1b[1G")
+            logl = round(sum(siblogl),digits=2)
+            msg *= string(", logl=", round(logl,digits=1),                            
+                ", stuck=", nstuck,                                 
+                ", err=", round(doseerr,digits=4),                            
+                ", tused=",round(time()-startt,digits=1),"s",
+                ", #del=", ndel)
+            ndel == 0 && (delmarker = false)               
+        else
+            msg *= string(", logl=",round(logl,digits=1),
+                ", stuck=", nstuck,            
+                ", err=", round(doseerr,digits=4),
+                ", tused=",round(time()-startt,digits=1),"s") 
+        end
+        push!(loglhis,logl)                                                                                        
+        printconsole(io,verbose,msg)            
+        if nstuck >= maxstuck || it == maxiter
+            break
         end
     end
     # keeping fhaploindex vlaue during local phasing
@@ -503,51 +504,41 @@ function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractV
     [fhaploindex, bvpair,loglhis[end], loglhis]
 end
 
-function inferepsilonls!(epsilonls::AbstractVector,chrdose::AbstractMatrix,
-    bvpair::AbstractVector,fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    priorspace::AbstractDict,priorprocess::AbstractDict,polygeno::PolyGeno)
-    snporder = 1:size(chrdose,1)
-    dataprobset = caldataprobset(fhaploindex,fhaploset,epsilonls,
-        chrdose,priorspace,polygeno)
+function logldoseerr(doseerr::Real,bvpair::AbstractVector,
+    priorspace::AbstractDict,priorprocess::AbstractDict,
+    chrdose::AbstractMatrix, deriveddose::AbstractDict,polygeno::PolyGeno)
+    doseerrls = [doseerr for i=1:size(chrdose,1)]
+    bvpairprop = [[i] for i=bvpair]
+    logllist = calmarglogl(doseerrls, deriveddose, chrdose,
+        priorspace,priorprocess,polygeno,bvpairprop)
+    logl=sum(vcat(logllist...))
+    logl
+end
+
+function updatedoseerr(doseerr::Real,bvpair::AbstractVector,
+    fhaploindex::AbstractVector,fhaploset::AbstractVector,
+    priorspace::AbstractDict,priorprocess::AbstractDict,
+    chrdose::AbstractMatrix, polygeno::PolyGeno)
+    accuracygoal, precisiongoal, itmax = 3, 3, 20
+    lowbound,upbound = log(10^(-6.0)), log(min(0.95,doseerr+0.25))
+    # here x is Jaccobi factor for transformation eps->log(eps)
     fhaplo= getfhaplo(fhaploindex,fhaploset)
     deriveddose = getderiveddose(fhaplo,priorspace,polygeno)
-    updateepsilonls!(epsilonls, snporder,dataprobset,bvpair,
-        chrdose,deriveddose,priorspace, priorprocess,polygeno)
-end
-
-function loglepsilon(epsilon::Real,bvpair::AbstractVector,
-    fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    chrdose::AbstractMatrix, priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno)
-    dataprobset = caldataprobset(fhaploindex,fhaploset,epsilon,
-        chrdose,priorspace,polygeno)
-    bvpairprop = [[i] for i=bvpair]
-    logllist = calmarglogl(dataprobset, priorspace,priorprocess,polygeno,bvpairprop)
-    logl=sum(vcat(logllist...))
-    logl, dataprobset
-end
-
-function updateepsilon(epsilon::Real,bvpair::AbstractVector,
-    fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno)
-    accuracygoal, precisiongoal, itmax = 2, 2, 20
-    lowbound,upbound = log(10^(-6.0)), log(1.0-10^(-6.0))
-    # here x is Jaccobi factor for transformation eps->log(eps)
-    f(x)=first(loglepsilon(exp(x),bvpair,fhaploindex,fhaploset,chrdose,
-        priorspace,priorprocess,polygeno))
-    x0=log(epsilon)
+    f(x)=logldoseerr(exp(x),bvpair,priorspace,priorprocess,
+        chrdose,deriveddose,polygeno)
+    x0=log(doseerr)
     newx, logleps, his=brentMax(f,lowbound,upbound,x0,
         precisiongoal=precisiongoal,accuracygoal=accuracygoal,maxiter=itmax)
     # newx,logleps,accept =metroplos_norm(f,x0,maxiter=10,
     #     temperature=temperature,propstd=log(3))
+    # @info "infer doseerror his: " his
     exp(newx),logleps
 end
 
 function updatefhaplobvpair(fhaploindex::AbstractVector,
     bvpair::AbstractVector,siblogl::AbstractVector,
     fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    epsilon::Real,chrdose::AbstractMatrix,priorspace::AbstractDict,
+    doseerr::Real,chrdose::AbstractMatrix,priorspace::AbstractDict,
     priorprocess::AbstractDict,polygeno::PolyGeno,byparent::Bool,byneighbor::Bool)
     if byparent
         nf= size(polygeno.designinfo,2)-1
@@ -558,10 +549,12 @@ function updatefhaplobvpair(fhaploindex::AbstractVector,
     end
     newfhaploindex = deepcopy(fhaploindex)
     newbvpair,newsiblogl = deepcopy(bvpair),deepcopy(siblogl)
+    doseerrls = [doseerr for i=1:size(chrdose,1)]
+    # tuse1=tuse2=0
     for findex=findexlist
         # println("findex=",findex)
         newfphase = randfphase(findex,newfhaploindex,
-            fhaploset,fhaploweight,epsilon,
+            fhaploset,fhaploweight,doseerr,
             newbvpair,chrdose,priorspace,priorprocess,polygeno)
         if byparent
             b = .!(ismissing.(newfphase))
@@ -577,18 +570,19 @@ function updatefhaplobvpair(fhaploindex::AbstractVector,
         popidls = popfromfindex(findex,polygeno)
         if byneighbor
             updatebvpair!(newbvpair,newsiblogl,newfhaploindex,fhaploset,
-                epsilon,chrdose,priorspace,priorprocess,polygeno,popidls)
+                doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
         else
             randbvpair!(newbvpair,newsiblogl,newfhaploindex,fhaploset,
-                epsilon,chrdose,priorspace,priorprocess,polygeno,popidls)
+                doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
         end
+        # println("\t[tfphase,tbvpair]=",[tuse1,tuse2])
     end
     newfhaploindex,newbvpair,newsiblogl,round(sum(newsiblogl),digits=2)
 end
 
 function randfphase(findex,fhaploindex::AbstractVector,
     fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    epsilon::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
+    doseerr::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
     priorprocess::AbstractDict,polygeno::PolyGeno)
     isreverse = rand([true,false])
     if isreverse
@@ -596,13 +590,12 @@ function randfphase(findex,fhaploindex::AbstractVector,
         reverse!.(fhaploset)
         reverse!.(fhaploweight)
         chrdose=reverse(chrdose, dims=1)
-        # priorprocess = Dict([key => reverseprior(val) for (key, val) in priorprocess])
         for (key, val) in priorprocess
              reverseprior!(val)
         end
     end
     fwphaseset,fwlogpgeno,fwlogpost,bvdict=polyforward(findex,fhaploindex,
-        fhaploset,fhaploweight,epsilon,bvpair,chrdose,priorspace,priorprocess,polygeno)
+        fhaploset,fhaploweight,doseerr,bvpair,chrdose,priorspace,priorprocess,polygeno)
     fphases = first(polybackward(fwlogpgeno,fwlogpost,bvdict,priorprocess))
     fphases = map((x,y)->ismissing(y) ? missing : x[y],fwphaseset,fphases)
     if ndims(findex) == 0
@@ -612,8 +605,8 @@ function randfphase(findex,fhaploindex::AbstractVector,
         if nfindex==1
             res = [fphases]
         elseif nfindex==2
-            hh = map((i,j)->[div(i-1,j)+1,rem(i-1,j)+1],fphases,length.(fhaploset[last(findex)]))
-            hh = hcat(hh...)
+            hh0 = map((i,j)->[div(i-1,j)+1,rem(i-1,j)+1],fphases,length.(fhaploset[last(findex)]))
+            hh = reduce(hcat,hh0)
             res=[hh[i,:] for i=1:size(hh,1)]
         else
             @error(string("too many #parents = ", nfindex, " in the ", popindex, "-th subpopulation"))
@@ -627,7 +620,6 @@ function randfphase(findex,fhaploindex::AbstractVector,
         reverse!.(fhaploset)
         reverse!.(fhaploweight)
         chrdose=reverse(chrdose, dims=1)
-        # priorprocess = Dict([key => reverseprior(val) for (key, val) in priorprocess])
         for (key, val) in priorprocess
              reverseprior!(val)
         end
@@ -691,11 +683,13 @@ function getbvpairprop(priorspace::AbstractDict,polygeno::PolyGeno,
     res[res .> 0]
 end
 
-
 function uploglgrid!(loglgrid::AbstractMatrix,bvnow::Integer,
-    dataprob::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString)
-    itmax=10
+    dataprob::AbstractVector,priorspace::AbstractDict,
+    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString,
+    snporder::AbstractVector)
+    # itmax=ceil(Int, sqrt(size(loglgrid,1)))
+    itmax = size(loglgrid,1)
+    nstuckmax=ceil(Int, itmax/5)
     nstuck=0
     loglnow = -Inf
     for it=1:itmax
@@ -703,18 +697,16 @@ function uploglgrid!(loglgrid::AbstractMatrix,bvnow::Integer,
         if dims == 0
             bvprop = getbvpairprop(priorspace,polygeno,popid,loglgrid)
         else
-            # bvprop = getbvpairprop(priorspace,polygeno,popid,dims,bvnow)
             bvprop = priorspace[popid]["valentneighbor"][bvnow][dims]
         end
-        # loglls=loglgrid[bvprop]
-        loglls = upoffmarglogl!(loglgrid,dataprob, popid, priorspace,priorprocess,bvprop)
+        loglls = upoffmarglogl!(loglgrid,dataprob, popid, priorspace,priorprocess,bvprop,snporder)
         logl = max(loglls...)
         bv = rand(bvprop[loglls .== logl])
         # println("   it=",it,",(bv,logl)=",(bv,logl))
-        (bv == bvnow && logl == loglnow) ? nstuck +=1 : nstuck = 0
+        (bv == bvnow && logl ≈ loglnow) ? nstuck +=1 : nstuck = 0
         bvnow = bv
         loglnow = logl
-        nstuck>=2 && break
+        nstuck>=nstuckmax && break
     end
     bvnow
 end
@@ -723,36 +715,38 @@ function randbvprop(priorspace::AbstractDict,polygeno::PolyGeno,
     popid::AbstractString,loglgrid::AbstractMatrix)
     valents = priorspace[popid]["valent"]
     isnonmiss = .!ismissing.(valents)
-    cart = CartesianIndices(valents)
+    # cart = CartesianIndices(valents)
     linear = LinearIndices(valents)
     bool = ismissing.(loglgrid) .* isnonmiss
     res = linear[bool]
     length(res) == 0 ? missing : rand(res)
 end
 
-function randbvprop(bvnow::Integer,loglnow::Real,dataprob::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString)
+function randbvprop(bvinput::Integer,loglinput::Real,dataprob::AbstractVector,
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString,
+    snporder::Union{Nothing,AbstractVector}=nothing)
     loglgrid = Matrix{Union{AbstractFloat,Missing}}(missing,size(priorspace[popid]["valent"]))
     minrun = 3
     maxrun = 10
     loglhis = [-Inf]
     bvhis = [0]
+    isnothing(snporder) && (snporder=1:length(dataprob))
     for run=1:maxrun
         bvnow = randbvprop(priorspace,polygeno,popid,loglgrid)
         ismissing(bvnow) && break
         bv = uploglgrid!(loglgrid,bvnow,dataprob,priorspace,priorprocess,
-            polygeno,popid)
+            polygeno,popid,snporder)
         logl = loglgrid[bv]
         push!(bvhis,bv)
         push!(loglhis,logl)
-        nrepeat =sum(loglhis .== max(loglhis...))
+        nrepeat =sum(loglhis .== max(loglhis...))        
         nrepeat == minrun && break
-        # println("run=",run, ",bv=",bv, ",logl=", logl,",nrepeat=",nrepeat)
     end
     bv,logl=last(bvhis), last(loglhis)
-    if logl < loglnow
-        bv = uploglgrid!(loglgrid,bv,dataprob,priorspace,priorprocess,
-            polygeno,popid)
+    if logl < loglinput
+        bv = uploglgrid!(loglgrid,bvinput,dataprob,priorspace,priorprocess,
+            polygeno,popid,snporder)
         logl = loglgrid[bv]
     end
     bv, logl
@@ -760,26 +754,34 @@ end
 
 function updatebvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
     fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    epsilon::Union{Real,AbstractVector},chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popidls)
+    doseerrls::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
+    priorprocess::AbstractDict,polygeno::PolyGeno,popidls;
+    snporder::Union{Nothing,AbstractVector}=nothing,
+    show_progress::Bool=false)
     # startt=time()
     fhaplo=getfhaplo(fhaploindex,fhaploset)
     deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)
+    noff = sum([in(i, popidls) for i in polygeno.offspringinfo[!,:population]])
+    progress = Progress(noff;
+        enabled = show_progress,
+        desc=string("Update chrpairing..."))
     for popid = popidls
         offls = findall(polygeno.offspringinfo[!,:population] .== popid)
+        ploidy = polygeno.offspringinfo[first(offls),:ploidy]
         for off=offls
             # println("off=", off,",t=",round(time()-startt,digits=2))
             offdose = chrdose[:,off]
             popid = polygeno.offspringinfo[off,:population]
-            ploidy = polygeno.offspringinfo[off,:ploidy]
-            dataprob = caldataprob(offdose,popid,ploidy,deriveddose,epsilon)
-            bvpair[off],siblogl[off] = randbvprop(bvpair[off],siblogl[off],dataprob,priorspace,priorprocess,polygeno,popid)
+            dataprob = caldataprob(offdose,ploidy,deriveddose[popid],doseerrls)
+            bvpair[off],siblogl[off] = randbvprop(bvpair[off],siblogl[off],
+                dataprob,priorspace,priorprocess,polygeno,popid,snporder)
+            next!(progress)
         end
     end
     markerincl = first(values(priorprocess)).markerincl
     tseq = findall(.!markerincl)
     if length(tseq)>0
-        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,epsilon,
+        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,doseerrls,
             bvpair,priorspace,priorprocess,polygeno)
         offls = findall([i in popidls for i=polygeno.offspringinfo[!,:population]])
         siblogl[offls] .+= isologl[offls]
@@ -789,13 +791,15 @@ end
 
 function randbvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
     fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    epsilon::Union{Real,AbstractVector},chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popidls;isrand::Bool=true)
+    doseerrls::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
+    priorprocess::AbstractDict,polygeno::PolyGeno,popidls;
+    isrand::Bool=true,
+    snporder::Union{Nothing,AbstractVector}=nothing)
     fhaplo=getfhaplo(fhaploindex,fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)    
+    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)
     bvpairprop = getbvpairprop(priorspace,polygeno)
-    logllist = calmarglogl(epsilon,deriveddose,chrdose,priorspace,
-        priorprocess,polygeno,bvpairprop)
+    logllist = calmarglogl(doseerrls,deriveddose,chrdose,priorspace,
+        priorprocess,polygeno,bvpairprop;snporder)
     offls = findall(.!(ismissing.(logllist)))
     # problist, siblogl[offls]=normalizelogl(logllist[offls])
     problist = first(normalizelogl(logllist[offls]))
@@ -812,7 +816,7 @@ function randbvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
     markerincl = first(values(priorprocess)).markerincl
     tseq = findall(.!markerincl)
     if length(tseq)>0
-        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,epsilon,
+        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,doseerrls,
             bvpair,priorspace,priorprocess,polygeno)
         offls = findall([i in popidls for i=polygeno.offspringinfo[!,:population]])
         siblogl[offls] .+= isologl[offls]
@@ -822,7 +826,7 @@ end
 
 function calisomarkerlogl(tseq::AbstractVector,fhaploindex::AbstractVector,
     fhaploset::AbstractVector,chrdose::AbstractMatrix,
-    epsilon::Union{Real,AbstractVector},bvpair::AbstractVector,priorspace::AbstractDict,
+    doseerrls::AbstractVector,bvpair::AbstractVector,priorspace::AbstractDict,
     priorprocess::AbstractDict,polygeno::PolyGeno)
     sum(begin
         # println(["t=",t, "; ",fhaploindex[i][t] for i=1:length(fhaploindex)])
@@ -834,12 +838,12 @@ function calisomarkerlogl(tseq::AbstractVector,fhaploindex::AbstractVector,
         # end for i=1:length(fhaploindex)]
         markerfphase=[fhaploset[i][t][[fhaploindex[i][t]]] for i=1:length(fhaploindex)]
         markeroffdose = chrdose[t,:]
-        calisomarkerlogl(markerfphase,markeroffdose,epsilon,bvpair,priorspace,priorprocess,polygeno)
+        calisomarkerlogl(markerfphase,markeroffdose,doseerrls,bvpair,priorspace,priorprocess,polygeno)
     end for t=tseq)
 end
 
 function calisomarkerlogl(markerfphase::AbstractVector,markeroffdose::AbstractVector,
-    epsilon::Union{Real,AbstractVector},bvpair::AbstractVector,priorspace::AbstractDict,
+    doseerrls::AbstractVector,bvpair::AbstractVector,priorspace::AbstractDict,
     priorprocess::AbstractDict,polygeno::PolyGeno)
     if length(markerfphase)==1
         fhaplolist = markerfphase[1]
@@ -857,10 +861,9 @@ function calisomarkerlogl(markerfphase::AbstractVector,markeroffdose::AbstractVe
             keyls = priorspace[popid]["valentkey"]
             res[offls,kk]=[begin
                 bv = bvpair[off]
-                pri = priorprocess[keyls[bv]]
-                dataprob0 = caldataprob([markeroffdose[off]],popid,ploidy,deriveddose,epsilon)
-                dataprob = dataprob0[1,condstates[bv]]
-                startprob = pri.startprob
+                ddose = deriveddose[popid][:, condstates[bv]]
+                dataprob = only(caldataprob([markeroffdose[off]],ploidy,ddose,doseerrls))
+                startprob = only(getstartprobls(priorprocess,[keyls[bv]]))
                 log(dot(startprob,dataprob))
             end for off=offls]
         end
@@ -870,11 +873,9 @@ end
 
 function polyforward(findex,fhaploindex::AbstractVector,
     fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    epsilon::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,
+    doseerr::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,
     priorspace::AbstractDict,priorprocess::AbstractDict,polygeno::PolyGeno)
-    #
     # startt=time()
-    # println("startt time = ", startt)
     deriveddose = getderiveddose(findex,fhaploindex,fhaploset,priorspace,polygeno,bvpair)
     bvdict = getbvdict(findex,bvpair,priorspace,polygeno)
     phaseweight=getphaseweight(findex,fhaploweight)
@@ -885,35 +886,29 @@ function polyforward(findex,fhaploindex::AbstractVector,
     # markerincl is the same for all keys of priorprocess
     tseq=findall(first(values(priorprocess)).markerincl)
     t=tseq[1]
-    dataprob = calsitedataprob(t,findex,epsilon,bvpair,deriveddose,chrdose,priorspace,polygeno)
+    dataprob = calsitedataprob(t,findex,doseerr,bvpair,deriveddose,chrdose,priorspace,polygeno)
     # orde4ring of keys(bvdict) = popfromfindex, the same as that for dataprob
-    startprob=[[priorprocess[i].startprob for i=bvdict[id][2]] for id=keys(bvdict)]
+    startprob=[getstartprobls(priorprocess, bvdict[id][2]) for id=keys(bvdict)]
     # size(dataprobls[k][ind],1)is the same for any ind=1,...
-    fwlogpost[t]=[[log.(startprob[k][ind] .* dataprob[k][ind][g,:]) for
+    fwlogpost[t]=[[Vector{Float64}(log.(startprob[k][ind] .* dataprob[k][ind][g,:])) for
         g=1:size(dataprob[k][1],1),ind=1:length(dataprob[k])] for k=1:length(startprob)]
     fwlogpost[t], fwlogpgeno[t], fwphaseset[t]  = normfwpost(fwlogpost[t],phaseweight[t])
     for marker=2:length(tseq)
         t=tseq[marker]
         tbef=tseq[marker-1]
-        dataprob = calsitedataprob(t,findex,epsilon,bvpair,deriveddose,chrdose,
+        dataprob = calsitedataprob(t,findex,doseerr,bvpair,deriveddose,chrdose,
                     priorspace,polygeno)
-        tranprob=[[priorprocess[i].tranprobseq[tbef] for i=bvdict[id][2]] for id=keys(bvdict)]
+        tranprob=[gettranprobls(priorprocess, bvdict[id][2],tbef) for id=keys(bvdict)]
         fwlogpost[t] =[begin
             ls4=[begin
-                ls = log.(exp.(hcat(fwlogpost[tbef][k][:,ind]...)') * tranprob[k][ind])
+                ls = log.(exp.(reduce(hcat,fwlogpost[tbef][k][:,ind])') * tranprob[k][ind])
+                # logsumexp([-Inf]) = -Inf
                 ls2 = [logsumexp(ls[:,i] + fwlogpgeno[tbef])  for i=1:size(ls,2)]
                 ls3 = log.(dataprob[k][ind])
-                [ls3[i,:] + ls2 for i=1:size(ls3,1)]
+                ls4 = [ls3[i,:] + ls2 for i=1:size(ls3,1)]
+                ls4
             end for ind=1:length(dataprob[k])]
-            # ls4=[begin
-            #     ls = [exp(fwlogpgeno[t-1][g]) .* exp.(fwlogpost[t-1][k][g,ind])
-            #             for g=1:length(fwlogpgeno[t-1])]
-            #     ls2 = sum(hcat(ls...)' * tranprob[k][ind],dims=1)
-            #     ls3 = log.(dataprob[k][ind])
-            #     ls3 .+= repeat(log.(ls2),size(ls3,1))
-            #     [ls3[i,:] for i=1:size(ls3,1)]
-            # end for ind=1:length(dataprob[k])]
-            hcat(ls4...)
+            reduce(hcat, ls4)
         end for k=1:length(tranprob)]
         fwlogpost[t], fwlogpgeno[t], fwphaseset[t]  = normfwpost(fwlogpost[t],phaseweight[t])
     end
@@ -923,7 +918,7 @@ end
 function getphaseweight(findex, fhaploweight::AbstractVector)
     if typeof(findex) <:AbstractVector
         if length(findex)>1
-            phaseweight0 = hcat(fhaploweight[findex]...)
+            phaseweight0 = reduce(hcat,fhaploweight[findex])
             phaseweight = [kron(i...) for i=eachrow(phaseweight0)]
         elseif length(findex)==1
             phaseweight = fhaploweight[findex[1]]
@@ -954,7 +949,7 @@ function polybackward(fwlogpgeno::AbstractVector,fwlogpost::AbstractVector,
     for marker=length(tseq)-1:-1:1
         t=tseq[marker]
         tafter=tseq[marker+1]
-        tranprob=[[priorprocess[i].tranprobseq[t] for i=bvdict[id][2]] for id=keys(bvdict)]
+        tranprob=[gettranprobls(priorprocess, bvdict[id][2],t) for id=keys(bvdict)]
         # #phases (=ng) depends on marker t, but not the subpopulation indnex k,
         ng = size(fwlogpost[t][1],1)
         weight = [ones(0) for i=1:ng]
@@ -986,9 +981,7 @@ function normalizelogl(logllist)
 end
 
 function normfwpost(sitelogpost::AbstractVector,weight::AbstractVector)
-    # sitelogpost[k]: a mstrix of size #phases x #individuals in population k
-    # logpost is a matrix of size #phases x #individuals
-    logpost=hcat(sitelogpost...)
+    logpost=reduce(hcat,sitelogpost)
     sibscale=logsumexp.(logpost)
     # cal logpgeno
     logpgeno=sum(sibscale,dims=2)[:,1]

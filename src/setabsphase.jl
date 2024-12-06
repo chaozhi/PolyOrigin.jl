@@ -9,13 +9,13 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     isfile(refhapfile2) || @error(string(refhapfile," does not exist in workdir = ",workdir))
     ploidy = parentinfo[!,:ploidy]
     refhap=CSV.read(refhapfile2,DataFrame; delim=delim,comment=comment,missingstring=missingstring)
-    refcols = strip.(names(refhap))
-    refdict = Dict(refcols[4:end] .=> 4:length(refcols))
-    refii = [get(refdict, i, nothing) for i = parentinfo[!,:individual]]
-    if in(nothing, refii)
-        string("parents in polyancestray but not refhapfile: ",parentinfo[isnothing.(refii),:individual])
+    ncol = 3+size(parentinfo,1)
+    if size(refhap,2) >= ncol
+        refhap = refhap[:,1:ncol]
+    else
+        error(string("#columns = ", size(refhap,2) , ", smaller than ", ncol, " = 3+#parent"))
+
     end
-    refhap = refhap[!, vcat(1:3,refii)]
     for i=union(1:2,4:size(refhap,2))
         refhap[!,i] = string.(strip.(string.(refhap[!,i])))
     end
@@ -39,7 +39,7 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     # check marker and chr
     parentid = strip.(string.(names(refhap)[4:end]),' ')
     if parentid != parentinfo[!,:individual]
-        @error string("parent IDs are inconsistent")
+        @warn string("parent IDs are inconsistent")
     end
     refmap = refhap[!, 1:2]
     rename!(refmap,[:marker,:chromosome])
@@ -99,8 +99,8 @@ end
 function calabsolutehap(estparentgeno::AbstractVector,refparenthap::AbstractVector,
     parentinfo::DataFrame,designinfo::DataFrame;
     io::Union{Nothing,IOStream}=nothing,verbose::Bool=true)
-    refhap = [[Matrix(hcat(hh[:,i]...)') for i=1:size(hh,2)] for hh = refparenthap]
-    esthap = [[Matrix(hcat(hh[:,i]...)') for i=1:size(hh,2)] for hh = estparentgeno]
+    refhap = [[Matrix(reduce(hcat,hh[:,i])') for i=1:size(hh,2)] for hh = refparenthap]
+    esthap = [[Matrix(reduce(hcat,hh[:,i])') for i=1:size(hh,2)] for hh = estparentgeno]
     ploidy = parentinfo[!,:ploidy]
     ccparent = connected_parents(designinfo)
     nch = length(esthap)
@@ -131,11 +131,11 @@ function calabsolutehap(estparentgeno::AbstractVector,refparenthap::AbstractVect
     end
     if io !==nothing
         nphaseerr = [calnphaseerr(refhap[ch],newesthap[ch]) for ch=1:length(refhap)]
-        nphaseerr2 = hcat(nphaseerr...)'
+        nphaseerr2 = reduce(hcat,nphaseerr)'
         msg = string("comparison: #mismatch phases between esthaplo and refhaplo = ",nphaseerr2)
         printconsole(io,verbose,msg)
         ndoseerr = [calndoseerr(refhap[ch],newesthap[ch]) for ch=1:length(refhap)]
-        ndoseerr2 = hcat(ndoseerr...)'
+        ndoseerr2 = reduce(hcat,ndoseerr)'
         msg = string("comparison: #mismatch dosages between esthaplo and refhaplo = ", ndoseerr2)
         printconsole(io,verbose,msg)
     end
@@ -220,11 +220,12 @@ end
 function getvalentorder(homologmap::AbstractMatrix,popstatespace::AbstractDict)
     homologdict = gethomologdict(homologmap,popstatespace)
     valentstate = popstatespace["valent"]
-    valentrule = Dict(valentstate[:] .=> 1:length(valentstate))
+    states = [sort.(i) for i=valentstate[:]]
+    staterule = Dict(states.=> 1:length(states))
     [begin
         vv2=[sort(map(x->sort([get(homologdict,i,missing) for i=x]),v)) for v=vv]
-        get(valentrule,vv2,missing)
-    end for vv=valentstate[:]]
+        get(staterule,vv2,missing)
+    end for vv=states]
 end
 
 function ordervalentprob!(polyancestry::PolyAncestry,homologmapls::AbstractVector)
@@ -276,7 +277,7 @@ function setAbsPhase!(refhapfile::AbstractString, phasedgeno::PolyGeno;
         workdir=workdir,delim=delim,comment=comment)
     homologmapls,newesthap = calabsolutehap(phasedgeno.parentgeno,refparenthap,
         phasedgeno.parentinfo,phasedgeno.designinfo,io=io,verbose=verbose)
-    phasedgeno.parentgeno = [hcat([[h[i,:] for i=1:size(h,1)] for h=hh]...) for hh=newesthap]
+    phasedgeno.parentgeno = [reduce(hcat,[[h[i,:] for i=1:size(h,1)] for h=hh]) for hh=newesthap]
     if size(phasedgeno.correction,1)>0
         chridls =  [i[1,:chromosome] for i=phasedgeno.markermap]
         ppidls = phasedgeno.parentinfo[!,:individual]
@@ -327,13 +328,13 @@ function setabsphase0!(refparenthaplo::AbstractVector,polyancestry::PolyAncestry
     # homologmapls[2] = [1, [4,3,2,1]]: # esthaploch[2][4,3,2,1] matches refhaploch[1]
     homologmapls,newesthap = calabsolutehap(polyancestry.parentgeno,refparenthaplo,
         polyancestry.parentinfo, polyancestry.designinfo,io=io,verbose=verbose)
-    polyancestry.parentgeno = [hcat([[h[i,:] for i=1:size(h,1)] for h=hh]...) for hh=newesthap]
+    polyancestry.parentgeno = [reduce(hcat,[[h[i,:] for i=1:size(h,1)] for h=hh]) for hh=newesthap]
     ordercondprob!(polyancestry,homologmapls)
     if size(polyancestry.correction,1)>0
         chridls =  [i[1,:chromosome] for i=polyancestry.markermap]
         ppidls = polyancestry.parentinfo[!,:individual]
         ordercorrecion!(polyancestry.correction,homologmapls,chridls,ppidls)
     end
-    polyancestry.valentprob ===nothing || ordervalentprob!(polyancestry,homologmapls)
+    isnothing(polyancestry.valentprob) || ordervalentprob!(polyancestry,homologmapls)
     polyancestry
 end

@@ -2,7 +2,7 @@ function brentMin(f::Function,lowbound,upbound,xstart,precisiongoal,accuracygoal
     cgold = 0.381966 #(3-Sqrt(5))/2
     a = min(lowbound, upbound)
     b = max(lowbound, upbound)
-    if xstart==nothing || (!(a<=xstart<=b))
+    if isnothing(xstart) || (!(a<=xstart<=b))
         x = a + cgold*(b - a)
     else
         x = xstart

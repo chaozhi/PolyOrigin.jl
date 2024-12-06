@@ -1,3 +1,11 @@
+function exportall(mod)
+    for n in names(mod, all = true)
+        if Base.isidentifier(n) && n ∉ (Symbol(mod), :eval)
+            @eval mod export $n
+        end
+    end
+end
+
 function rmfile(file::AbstractString;
     workdir::AbstractString=pwd())
     olddir = pwd()
@@ -39,7 +47,7 @@ end
 
 function printpkgst(io::Union{Nothing,IO},verbose::Bool,pkgname::AbstractString)
     verbose && Pkg.status(pkgname)
-    if io !== nothing
+    if !isnothing(io)
         redirect_stdout(io) do
             Pkg.status(pkgname)
         end
@@ -67,7 +75,7 @@ function splitindex(f::Function,A::AbstractVector)
 end
 
 function splitindex(A::AbstractVector)
-    f(x,y)= x == y
+    f(x,y)= x === y
     splitindex(f,A)
 end
 
@@ -92,7 +100,7 @@ end
 # using DelimitedFiles, DataStructures
 function readdlm2dict(filename::AbstractString;
     delim::AbstractChar=',', comment_char::AbstractChar='#',
-    isordereddict::Bool=false)
+    isordereddict::Bool=true)
     if !isfile(filename)
         error(filename," does not exist")
     end
@@ -106,7 +114,8 @@ function readdlm2dict(filename::AbstractString;
         i1,i2=seg[i:i+1]
         key=ls[i1,2]
         cols = [findfirst(x->x=="",ls[j,:]) for j=i1+1:i2-1]
-        cols = cols[cols .!= nothing]
+        # cols = cols[cols .!= nothing]
+        cols = cols[.!isnothing.(cols)]
         ncol = cols == [] ?  length(ls[i1+1,:]) : max(cols...) -1
         segmtx=ls[i1+1:i2-1,1:ncol]
         df=DataFrame(segmtx[2:end,:],Symbol.(segmtx[1,:]))
@@ -120,14 +129,18 @@ end
 
 function savedict2dlm(outfile::Union{AbstractString,IOStream},
     dict::AbstractDict;
-    regionkey::AbstractString = "juliaDict",
+    regionkey::AbstractString = "PolyOrigin",
     delim::AbstractChar=',')
     io = typeof(outfile) <: AbstractString ? open(outfile, "w+") : outfile
     for (key, value) in dict
         write(io,string(regionkey,string(delim), key,"\n"))
         if isa(value,AbstractDataFrame)
-            CSV.write(io, value; delim=delim,
-                header=true,append=true)
+            if isempty(value)
+                write(io, join(names(value),delim),"\n")
+            else
+                CSV.write(io, value; delim=delim,
+                    header=true,append=true)
+            end
             flush(io)
         else
             # error in writing nothing
@@ -179,8 +192,6 @@ function gridpartition(xls::AbstractVector,gridsize::Real)
         i>length(xls) && break
     end
     push!(res,bin)
-    # ls=[Vector{Float64}(xls[i]) for i=res]
-    # [grid[2:end] ls]
     res
 end
 

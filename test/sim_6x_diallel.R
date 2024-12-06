@@ -3,12 +3,13 @@
 # devtools::install_github("rramadeu/MultiPolyPop",force=TRUE)
 library(MultiPolyPop)
 
+
 library(rstudioapi)    
 workdir=dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(workdir)
 getwd()
 
-simmaphaplo <- function(nsnp,np,ploidy=2,chrlen=100,seed=1234){
+simmaphaplo <- function(nsnp,np,ploidy=4,chrlen=100,seed=1234){
   haplo = fake_haplo(n=np*ploidy,m=nsnp,seed=seed)
   cm0=rexp(nsnp-1,rate=1)
   cm0=cm0/(sum(cm0)/chrlen)
@@ -17,14 +18,14 @@ simmaphaplo <- function(nsnp,np,ploidy=2,chrlen=100,seed=1234){
   list(map=cm,hap=haplo)
 }
 
-ploidy=2
+ploidy=6
 nsnp=120
 np=3
 sim=simmaphaplo(nsnp,np,ploidy=ploidy)
 pedigree = diallel_pedigree(parents=np,selfs=1,popsize=40)
 pedigreesimR(sim$map,sim$hap,
              ploidy=ploidy,
-             sampleHap = FALSE,filename="2x_diallel_",
+             sampleHap = FALSE,filename="6x_diallel_",
              pedigree,workingfolder = getwd(),
              epsilon = c(0.01,0.01),
              missingFreq=c(0.1,0.1),

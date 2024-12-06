@@ -1,6 +1,7 @@
 # using Pkg
 # Pkg.develop(path=abspath(@__DIR__, ".."))
 
+using Revise
 using PolyOrigin
 cd(@__DIR__)
 pwd()
@@ -9,17 +10,14 @@ pwd()
 genofile = "geno.csv"
 pedfile = "ped.csv"
 outstem = "example_output"
-@time polyancestry = polyOrigin(genofile, pedfile;    
-    refinemap=false,    
+@time polyancestry = polyOrigin(genofile, pedfile;            
+    isplot = true, 
+    nplot_subpop = 3, 
     outstem,
 );
 
-# plot relative frequencies of valent configurations
-polyancestry = readPolyAncestry(outstem*"_polyancestry.csv")
-valentfreq = calvalentfreq(polyancestry)
-plotvalentfreq(valentfreq)
-
 # calculate the accuracy of parental phasing and ancestral inference
+polyancestry = readPolyAncestry(outstem*"_polyancestry.csv")
 truefile = "true.csv"
 truegeno = readTruegeno!(truefile, polyancestry)
 acc = calAccuracy!(truegeno, polyancestry)
@@ -34,4 +32,7 @@ animCondprob(polyancestry;
 )
 
 # delete output files
+cd(@__DIR__)
+outstem = "example_output"
+rm(outstem*"_plots",recursive=true)
 rm.(filter(x->occursin(outstem,x), readdir()))

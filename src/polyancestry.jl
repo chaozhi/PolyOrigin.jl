@@ -178,9 +178,8 @@ end
 function parentgeno2df(polyancestry::PolyAncestry)
     nch = length(polyancestry.parentgeno)
     fhaplo=vcat([stringjoin.(polyancestry.parentgeno[ch],"|") for ch=1:nch]...)
-    vcatmap = Matrix(vcat(polyancestry.markermap...))
-    fhaplo2=hcat(vcatmap,fhaplo)
-    parentid = polyancestry.parentinfo[!,:individual]
+    vcatmap = Matrix(reduce(vcat,polyancestry.markermap))    
+    fhaplo2=hcat(vcatmap,fhaplo)    
     parentinfo = polyancestry.parentinfo
     DataFrame(fhaplo2,[propertynames(polyancestry.markermap[1]); Symbol.(parentinfo[!,1])])
 end
@@ -231,7 +230,7 @@ function condprob2df_old(polyancestry::PolyAncestry;ishaploprob::Bool=true)
             push!(res,resrow)
         end
     end
-    res2= permutedims(hcat(res...))
+    res2= permutedims(reduce(hcat,res))
     DataFrame(res2,Symbol.(rowid))
 end
 
@@ -240,10 +239,10 @@ function condprob2df(polyancestry::PolyAncestry;ishaploprob::Bool=true)
     condprob = ishaploprob ? polyancestry.haploprob : polyancestry.genoprob
     offls = polyancestry.offspringinfo[!,:individual]
     noff = length(offls)
-    vcatmap = vcat(polyancestry.markermap...)
-    nsnp = size(vcatmap,1)
-    res= Matrix(undef,nsnp,noff+3)
-    res[:,1:3]=Matrix(vcatmap)
+    vcatmap = reduce(vcat,polyancestry.markermap)[!, 1:3]
+    nsnp,nmapcol = size(vcatmap)
+    res= Matrix(undef,nsnp,noff+nmapcol)
+    res[:,1:nmapcol]=Matrix(vcatmap)
     nchr=length(condprob)
     for ind=1:noff
         indpr=[begin
@@ -253,18 +252,18 @@ function condprob2df(polyancestry::PolyAncestry;ishaploprob::Bool=true)
                 join([join(I,"|"),join(V,"|")],"=>")
             end for m = 1:size(prob,1)]
         end for ch=1:nchr]
-        res[:,ind+3] =  vcat(indpr...)
+        res[:,ind+nmapcol] =  vcat(indpr...)
     end
     rowid = [propertynames(vcatmap); Symbol.(offls)]
     DataFrame(res,rowid)
 end
 
 function viterbipath2df(polyancestry::PolyAncestry)
-    if polyancestry.viterbipath == nothing
+    if isnothing(polyancestry.viterbipath)
         return reshape(["nothing"],1,:)
     end
     res = [[HMM.toStringpath(HMM.toJumppath(i)) for i=eachcol(j)] for j=polyancestry.viterbipath]
-    res2=[join(i,"|") for i=eachrow(hcat(res...))]
+    res2=[join(i,"|") for i=eachrow(reduce(hcat,res))]
     offls = polyancestry.offspringinfo[!,:individual]
     DataFrame([offls res2],[:individual,:viterbipath])
 end
@@ -292,7 +291,7 @@ function valentprob2df(polyancestry::PolyAncestry)
             push!(res,resrow)
         end
     end
-    res2= permutedims(hcat(res...))
+    res2= permutedims(reduce(hcat,res))
     DataFrame(res2,Symbol.(rowid))
 end
 
@@ -366,28 +365,25 @@ function readPolyAncestry(genoprobfile::AbstractString,
     parentgeno2=parseinputgeno(parentgeno,missingstring=missingstring)
     offcols=[get(rule,i,missing) for i=offid]
     offgenoprob = [Matrix(genoprob[i,offcols]) for i=snpindexlist]
+
     priorspace = getpriorstatespace(designinfo,parentinfo,chrpairing)
     statespace = getstatespace(priorspace)
     rule=Dict([key=>length(statespace[key]["groupstate"]) for key=keys(statespace)])
     nstatels=[get(rule,i,missing) for i=offspringinfo[!,:population]]
     offgenoprob2=[begin
         mtx=offgenoprob[ch]
-        [sparse(hcat(parseprobcell.(mtx[:,off],nstatels[off])...)') for off=1:length(nstatels)]
+        [sparse(reduce(hcat,parseprobcell.(mtx[:,off],nstatels[off]))') for off=1:length(nstatels)]
     end for ch=1:length(offgenoprob)]
     markermap2=[DataFrame(i) for i=groupby(markermap,:chromosome)]
     verbose && @info string("data: #pop=", size(designinfo,1),
         ", #parent=",nparent, ", #offspring=",noff,
-        ", #chr=",length(markermap2), ", #marker=",size(markermap,1))
+        ", chr=",length(markermap2), ", #marker=",size(markermap,1))
     delmarker = getemptydf([String,String,Float64],[:marker,:chromosome,:position])
     colid = [:round,:marker,:chromosome,:parent,:old_genotype,:new_genotype, :old_nerr,:new_nerr]
-    correction = DataFrame(zeros(Int,0,8),colid)
-    for i=2:6
-        correction[!,i] .= string.(correction[!,i])
-    end
+    coltype = [Integer,String,String,String,String,String,Integer,Integer]
+    correction = DataFrame(coltype,colid)
     polyancestry=PolyAncestry(markermap2,parentgeno2, parentinfo,offspringinfo,
         designinfo,delmarker,correction,statespace,nothing,offgenoprob2,nothing)
-    sethaploprob!(polyancestry)
-    polyancestry
 end
 
 """
@@ -413,8 +409,7 @@ function readPolyAncestry(ancestryfile::AbstractString;
     workdir::AbstractString=pwd())
     ancestryfile2 = getabsfile(workdir,ancestryfile)
     isfile(ancestryfile2) || @error(string(ancestryfile," does not exist in workdir = ",workdir))
-    res = readdlm2dict(ancestryfile2)
-    markermap, parentgeno = parseparentgeno(res["parentgeno"])
+    res = readdlm2dict(ancestryfile2)    
     parentinfo = res["parentinfo"]
     parentinfo[!,:individual]=string.(parentinfo[!,:individual])
     offspringinfo = res["offspringinfo"]
@@ -422,6 +417,9 @@ function readPolyAncestry(ancestryfile::AbstractString;
     offspringinfo[!,:population]=string.(offspringinfo[!,:population])
     designinfo = res["designinfo"]
     designinfo[!,:population]=string.(designinfo[!,:population])
+
+    nparent = size(parentinfo, 1)
+    markermap, parentgeno = parseparentgeno(res["parentgeno"],nparent)
     delmarker = res["delmarker"]
     for i=1:2
         delmarker[!,i]=string.(delmarker[!,i])
@@ -444,15 +442,15 @@ function readPolyAncestry(ancestryfile::AbstractString;
     polyancestry
 end
 
-
-function parseparentgeno(parentgeno)
-    markermap = parentgeno[:,1:3]
+function parseparentgeno(parentgeno,nparent::Integer)
+    nmapcol = size(parentgeno,2) - nparent
+    markermap = parentgeno[:,1:nmapcol]
     for i=1:2
         markermap[!,i]=string.(markermap[!,i])
     end
     groupdf = groupby(parentgeno, :chromosome)
     parentgeno = [begin
-        haplo = split.(Matrix(i[!,4:end]),"|")
+        haplo = split.(Matrix(i[!,nmapcol+1:end]),"|")
         # [[x=="missing" ? missing : parse(Int,x) for x in h] for h in haplo]
         [mytryparse.(Int, h) for h in haplo]
     end for i = groupdf]
@@ -462,14 +460,14 @@ end
 
 mytryparse(T, str) = something(tryparse(T, str), missing)
 
-function parsecondprob_old(condprob)
-    groupdf = groupby(condprob,1)
-    [begin
-        mtx=Matrix(groupdf[ch][!,3:7])
-        mtx[:,3:end]=split.(mtx[:,3:end],"|")
-        [sparse(parse.(Int,i[3]),parse.(Int,i[4]),parse.(Float64,i[5]),i[1],i[2]) for i=eachrow(mtx)]
-    end for ch=1:length(groupdf)]
-end
+# function parsecondprob_old(condprob)
+#     groupdf = groupby(condprob,1)
+#     [begin
+#         mtx=Matrix(groupdf[ch][!,3:7])
+#         mtx[:,3:end]=split.(mtx[:,3:end],"|")
+#         [sparse(parse.(Int,i[3]),parse.(Int,i[4]),parse.(Float64,i[5]),i[1],i[2]) for i=eachrow(mtx)]
+#     end for ch=1:length(groupdf)]
+# end
 
 function parseprobcell(x::AbstractString,nstate::Integer)
     ls=split.(split(x,"=>"),"|")
@@ -482,7 +480,7 @@ function parsecondprob(condprobdf::DataFrame,nstatels::AbstractVector)
     noff = length(nstatels)
     [begin
         mtx=Matrix(groupdf[ch][:,4:end])
-        [sparse(hcat(parseprobcell.(mtx[:,off],nstatels[off])...)') for off=1:noff]
+        [sparse(reduce(hcat,parseprobcell.(mtx[:,off],nstatels[off]))') for off=1:noff]
     end for ch=1:length(groupdf)]
 end
 
@@ -496,7 +494,7 @@ function parsevalentprob(valentprob)
             mtx2[:,j]=map(x->parse.(Float64,x),mtx2[:,j])
         end
         [begin
-            vp=Matrix{Real}(hcat(i...))
+            vp=Matrix{Real}(reduce(hcat,i))
             vp[:,1]=Int.(vp[:,1])
             vp
         end for i=eachrow(mtx2)]
@@ -530,7 +528,7 @@ function parsestatespace(ancestralstate,valent,missingstring::AbstractString)
             vv2[bool] .= missing
         end
         vv3=[ismissing(i) ? i : repeatmultivalent(i) for i=vv2]
-        index=hcat(map(x->parse.(Int,x),split.(dfvalent[pop][!,4],"|"))...)
+        index= reduce(hcat,map(x->parse.(Int,x),split.(dfvalent[pop][!,4],"|")))
         vv4=reshape(vv3,max(index[1,:]...),:)
         popid=>Dict(["valent"=>vv4,"parent"=>parent,"parentindex"=>parentindex,"groupstate"=>state])
     end for pop = 1:length(dfstate)])

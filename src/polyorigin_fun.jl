@@ -60,13 +60,15 @@ function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
     commentstring::AbstractString="#",
     isphysmap::Bool=false,
     recomrate::Real=1, # 1 cM per Mbp
-    epsilon::Real=0.01,
+    doseerr::Real=0.01,
     seqerr::Real=0.001,
     chrpairing_phase::Integer=22,
+    chrpairing_refine::Integer=22,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=false,
+    isparallel::Bool=true,
+    isparalleloffspring::Bool=true, 
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,
@@ -77,20 +79,22 @@ function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
     byneighbor::Union{Nothing,Bool}=nothing,
     refhapfile::Union{Nothing,AbstractString} = nothing,
     correctthreshold::AbstractFloat=0.15,
+    isinfererror::Bool=false,     
     refinemap::Bool=false,
     refineorder::Bool=false,
     maxwinsize::Integer=50,
     inittemperature::Real=4,
     coolingrate::Real=0.5,
     stripdis::Real=20, # centiMorgan
-    maxepsilon::Real=0.5,
-    skeletonsize::Integer=50,
+    maxdoseerr::Real=0.5,
+    skeletonsize::Integer=50,    
     isplot::Bool=false,
+    nplot_subpop::Integer=10, 
     outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log")),
+    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
     verbose::Bool=true)
-    if logfile === nothing
+    if isnothing(logfile)
         io=nothing
     else
         if typeof(logfile) <: AbstractString
@@ -103,61 +107,47 @@ function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
     printconsole(io,verbose,msg)
     printpkgst(io,verbose,"PolyOrigin")
     starttime = time()
-    printconsole(io,verbose,string(repeat("=",33),"polyOrigin",repeat("=",33)))
-    msg = string("PolyOrigin, polyOrigin, logfile=", logfile,
+    printconsole(io,verbose,string(repeat("=",27),"polyOrigin",repeat("=",28)))
+    msg = string("polyOrigin, logfile=", logfile,
         ", ", Dates.now())
     printconsole(io,verbose,msg)
-    polygeno = readPolyGeno(genofile,pedfile,
-        delimchar=delimchar,
-        missingstring=missingstring,
-        commentstring=commentstring,
-        isphysmap = isphysmap,
-        recomrate = recomrate,
-        workdir=workdir,
-        verbose=false)
-    msg = string("list of input files: \n",
+    polygeno = readPolyGeno(genofile,pedfile;
+        delimchar,missingstring,commentstring,
+        isphysmap,recomrate,
+        workdir,verbose)
+    msg = string("list of file args/options: \n",
             "genofile = ", genofile, "\n",
-            "pedfile = ", pedfile)
-    printconsole(io,false,msg)
-    msg = string("file input/output options: \n",
-        "delimchar = ", delimchar, "\n",
-        "missingstring = ", missingstring, "\n",
-        "commentstring = ", commentstring)
-    printconsole(io,false,msg)
-    polyancestry=polyOrigin!(polygeno,
-        epsilon=epsilon,
-        seqerr=seqerr,
-        chrpairing_phase=chrpairing_phase,
-        chrpairing=chrpairing,
-        chrsubset=chrsubset,
-        snpsubset=snpsubset,
-        isparallel=isparallel,
-        delmarker=delmarker,
-        delsiglevel=delsiglevel,
-        maxstuck=maxstuck,
-        maxiter=maxiter,
-        minrun=minrun,
-        maxrun=maxrun,
-        byparent=byparent,
-        byneighbor=byneighbor,
-        refhapfile=refhapfile,
-        refinemap=refinemap,
-        refineorder=refineorder,
-        maxwinsize=maxwinsize,
-        inittemperature=inittemperature,
-        coolingrate=coolingrate,
-        stripdis=stripdis,
-        maxepsilon=maxepsilon,
-        skeletonsize=skeletonsize,
-        isplot=isplot,
-        outstem = outstem,
-        correctthreshold=correctthreshold,
-        logfile=io,
-        workdir= workdir,
-        verbose=verbose)
+            "pedfile = ", pedfile, "\n",
+            "delimchar = ", delimchar, "\n",
+            "missingstring = ", missingstring, "\n",
+            "commentstring = ", commentstring)
+    printconsole(io,verbose,msg)
+    try  
+        gdesign= PolyOrigin.plotdesign(polygeno)
+        if isplot && !isnothing(outstem)
+            figdir = joinpath(workdir, outstem * "_plots")
+            isdir(figdir) || mkdir(figdir)        
+            fn = joinpath(figdir,outstem * "_pedigree.png")
+            savefig(gdesign,fn)
+            msg = string("save design plot in ", fn)
+            printconsole(io,verbose,msg)
+        end
+    catch err
+        printconsole(io, false, "Failed to plot pedigree")
+        @warn err
+    end
+    polyancestry=polyOrigin!(polygeno;
+        doseerr,seqerr,chrpairing_phase,chrpairing_refine,chrpairing,
+        chrsubset,snpsubset,isparallel,isparalleloffspring, delmarker,delsiglevel,
+        maxstuck,maxiter,minrun,maxrun,byparent,byneighbor,
+        refhapfile,refinemap,refineorder,
+        maxwinsize,inittemperature,coolingrate,stripdis,
+        maxdoseerr,skeletonsize,correctthreshold,
+        isinfererror, 
+        isplot,nplot_subpop, outstem,logfile=io,workdir,verbose)
     printconsole(io,verbose,string("End, ", Dates.now(),", total time used = ",
         round(time()-starttime), " seconds by polyOrigin"))
-    printconsole(io,verbose,repeat("=",76))
+    printconsole(io,verbose,repeat("=",66))
     if typeof(logfile) <: AbstractString
         close(io)
     elseif typeof(logfile) <: IO
@@ -180,7 +170,7 @@ polygeno from inputfiles.
 
 # Keyword arguments
 
-`epsilon::Real=0.01`: genotyping error probability.
+`doseerr::Real=0.01`: genotyping error probability.
 
 `seqerr::Real=0.001`: sequencing read error probability for GBS data.
 
@@ -199,7 +189,9 @@ to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
 
-`isparallel::Bool=false`: if true, multicore computing over chromosomes.
+`isparallel::Bool=true`: if true, multicore computing over chromosomes.
+
+`isparalleloffspring::Bool=true`: if true, multicore computing over offspring in ancestral inference.
 
 `delmarker::Bool=true`: if true, delete markers during parental phasing.
 
@@ -231,9 +223,9 @@ except that parental genotypes are phased and offspring genotypes are ignored if
 `correctthreshold::AbstractFloat=0.15`: a candidate marker is selected for
 parental error correction if the fraction of offspring genotypic error >= correctthreshold.
 
-`refinemap::Bool=false`: if true, refine marker map.
+`refinemap::Bool=false`: if true, refine genetic map. 
 
-`refineorder::Bool=false`: if true, refine marker mordering, valid only if refinemap=true
+`refineorder::Bool=false`: if true, refine marker mordering.
 
 `maxwinsize::Integer=50`: max size of sliding windown in map refinning.
 
@@ -244,11 +236,13 @@ parental error correction if the fraction of offspring genotypic error >= correc
 `stripdis::Real=20`: a chromosome end in map refinement is removed if it has a distance gap > stripdis
 (centiMorgan) and it contains less than 5% markers.
 
-`maxepsilon::Real=0.5`: markers in map refinement are removed it they have error
-rates > maxepsilon.
+`maxdoseerr::Real=0.5`: markers in map refinement are removed it they have error
+rates > maxdoseerr.
 
 `skeletonsize::Integer=50`: the number of markers in the skeleton map that is used
 to re-scale inter-map distances.
+
+`isinfererror::Bool=false`: if true, infer dosage error rate per marker during hapotype reconstruction. 
 
 `missingstring::AbstractString="NA"`: string code for missing value.
 
@@ -258,7 +252,7 @@ the folder "outstem_plots".
 `outstem::Union{Nothing,AbstractString}="outstem"`: stem of output filenames.
 If nothing, no output files.
 
-`logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log"))`:
+`logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log"))`:
 log file or IO for writing log. If nothing, no log file.
 
 `workdir::AbstractString = pwd()`: directory for reading and writing files.
@@ -272,13 +266,15 @@ julia> polyOrigin!(polygeno)
 ```
 """
 function polyOrigin!(polygeno::PolyGeno;
-    epsilon::Real=0.01,
+    doseerr::Real=0.01,
     seqerr::Real=0.001,
     chrpairing_phase::Integer=22,
+    chrpairing_refine::Integer=22,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=false,
+    isparallel::Bool=true,
+    isparalleloffspring::Bool=true,
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,maxiter::Integer=30,
@@ -293,130 +289,52 @@ function polyOrigin!(polygeno::PolyGeno;
     inittemperature::Real=4,
     coolingrate::Real=0.5,
     stripdis::Real=20, # centiMorgan
-    maxepsilon::Real=0.5,
+    maxdoseerr::Real=0.5,
     skeletonsize::Integer=50,
-    missingstring::AbstractString="NA",
+    isinfererror::Bool=false, 
     isplot::Bool=false,
+    nplot_subpop::Integer=10, 
+    missingstring::AbstractString="NA",
     outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log")),
+    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
     verbose::Bool=true)
-    if logfile === nothing
+    if isnothing(logfile)
         io=nothing
     else
         if typeof(logfile) <: AbstractString
             io=open(getabsfile(workdir,logfile), "w+")
             printpkgst(io,verbose,"PolyOrigin")
             starttime = time()
-            printconsole(io,verbose,string(repeat("=",33),"polyOrigin",repeat("=",33)))
-            printconsole(io,verbose,string("PolyOrigin, polyOrigin, logfile=", logfile, ", ", Dates.now()))
+            printconsole(io,verbose,string(repeat("=",27),"polyOrigin",repeat("=",28)))
+            printconsole(io,verbose,string("polyOrigin, logfile=", logfile, ", ", Dates.now()))
         else
             io=logfile
         end
+    end    
+    isparallel,isparalleloffspring= reset_parallel(isparallel,isparalleloffspring, 
+        isinfererror,length(polygeno.markermap); io, verbose)
+    if kindofgeno(polygeno.parentgeno) != "phasedgeno" || refinemap
+        phase_refine!(polygeno;
+            doseerr,seqerr,chrpairing_phase,chrpairing_refine,chrpairing,
+            chrsubset,snpsubset,isparallel,delmarker,delsiglevel,
+            maxstuck,maxiter,minrun,maxrun,byparent,byneighbor,
+            refhapfile,refinemap,refineorder,
+            maxwinsize,inittemperature,coolingrate,stripdis,
+            maxdoseerr,skeletonsize,correctthreshold,isplot,
+            outstem,logfile=io,workdir,verbose)
     end
-    if size(polygeno.parentinfo,1)>1
-        gdesign= PolyOrigin.plotdesign(polygeno)
-        # verbose && display(gdesign)
-        if isplot && (!isnothing(outstem))
-            figdir = joinpath(workdir, outstem * "_plots")
-            isdir(figdir) || mkdir(figdir)
-            fn = joinpath(figdir,outstem * "_pedigree.png")
-            savefig(gdesign,fn)
-            msg = string("save design plot in ", fn)
-            printconsole(io,verbose,msg)
-        end
-    end
-    if kindofgeno(polygeno.parentgeno) == "phasedgeno"
-        phasedgeno = getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
-    else
-        printconsole(io,verbose,string(repeat("-",34),"phasing",repeat("-",35)))
-        phasedgeno = polyPhase!(polygeno,
-            epsilon=epsilon, seqerr=seqerr,
-            chrpairing_phase=chrpairing_phase,
-            chrsubset=chrsubset,
-            snpsubset=snpsubset,
-            isparallel=isparallel,
-            delmarker=delmarker,
-            delsiglevel=delsiglevel,
-            maxstuck=maxstuck,maxiter=maxiter,
-            minrun=minrun,maxrun=maxrun,
-            byparent=byparent,byneighbor=byneighbor,
-            refhapfile=refhapfile,
-            missingstring=missingstring,
-            outstem=outstem,
-            logfile=io,
-            workdir=workdir,
-            verbose=verbose
-        )
-    end
-    if refinemap
-        printconsole(io,verbose,string(repeat("-",32),"maprefinning",repeat("-",32)))
-        if correctthreshold<1.0
-            polyReconstruct!(phasedgeno,
-                epsilon=epsilon, seqerr=seqerr,
-                chrpairing=chrpairing,
-                chrsubset=nothing,
-                snpsubset=nothing,
-                isparallel=isparallel,
-                correctthreshold=correctthreshold,
-                missingstring=missingstring,
-                outstem=nothing,
-                logfile=io,
-                workdir=workdir,
-                verbose=verbose
-            )
-        end
-        inputmap = deepcopy(phasedgeno.markermap)
-        polyMapRefine!(phasedgeno,
-            epsilon=epsilon,
-            chrpairing=chrpairing,
-            chrsubset=nothing,
-            snpsubset=nothing,
-            isparallel=isparallel,
-            refineorder=refineorder,
-            maxwinsize=maxwinsize,
-            inittemperature=inittemperature,
-            coolingrate=coolingrate,
-            stripdis=stripdis,
-            maxepsilon=maxepsilon,
-            skeletonsize=skeletonsize,
-            outstem=outstem,
-            logfile=io,
-            workdir=workdir,
-            verbose=verbose
-        )
-        if isplot && (!isnothing(outstem))
-            figdir = joinpath(workdir, outstem * "_plots")
-            isdir(figdir) || mkdir(figdir)
-            fn = joinpath(figdir,outstem * "_mapcomp.png")
-            plotMapComp(
-                inputmap,
-                phasedgeno.markermap,
-                xlabel = "Input map position (cM)",
-                ylabel = "Estimated map position (cM)",
-            )
-            savefig(fn)
-            msg = string("mapcomp file: ", joinpath(splitpath(fn)[end-1:end]...))
-            printconsole(io,verbose,msg)
-        end
-    end
-    printconsole(io,verbose,string(repeat("-",31),"reconstructing",repeat("-",31)))
-    polyancestry = polyReconstruct!(phasedgeno,
-        epsilon=epsilon, seqerr=seqerr,
-        chrpairing=chrpairing,
-        chrsubset=nothing,
-        snpsubset=nothing,
-        isparallel=isparallel,
-        correctthreshold=correctthreshold,
-        missingstring=missingstring,
-        isplot=isplot,
-        outstem=outstem,
-        logfile=io,
-        workdir=workdir,
-        verbose=verbose
+    printconsole(io,verbose,string(repeat("-",26),"reconstructing",repeat("-",26)))
+    polyancestry = polyReconstruct!(polygeno;
+        doseerr, seqerr, chrpairing,
+        chrsubset=nothing, snpsubset=nothing, 
+        isparallel, isparalleloffspring, 
+        correctthreshold, byneighbor, isinfererror, 
+        missingstring, isplot, nplot_subpop, 
+        outstem, logfile=io, workdir, verbose
     )
-    printconsole(io,verbose,repeat("-",76))
-    if refhapfile != nothing && size(polyancestry.correction,1)>0
+    printconsole(io,verbose,repeat("-",66))
+    if !isnothing(refhapfile) && size(polyancestry.correction,1)>0
         try
             setAbsPhase!(refhapfile,phasedgeno,workdir=workdir,io=io,verbose=verbose)
         catch err
@@ -428,10 +346,116 @@ function polyOrigin!(polygeno::PolyGeno;
     if typeof(logfile) <: AbstractString
         printconsole(io,verbose,string("End, ", Dates.now(),", total time used = ",
             round(time()-starttime), " seconds by polyOrigin"))
-        printconsole(io,verbose,repeat("=",76))
+        printconsole(io,verbose,repeat("=",66))
         close(io)
     elseif typeof(logfile) <: IO
         flush(io)
     end
     polyancestry
+end
+
+function reset_parallel(isparallel,isparalleloffspring, isinfererror,nchr; io, verbose)
+    isparallel = isparallel && nprocs()>1 && nchr > 1
+    isparalleloffspring = isparalleloffspring && nprocs()>1   
+    if isparalleloffspring && isparallel
+        if isinfererror 
+            isparalleloffspring = false # error estimation cannot be paralleled           
+            msg = string("reset isparalleloffspring=",isparalleloffspring, " since isparallel=",isparallel,
+                " and isinfererror=", isinfererror)                
+            printconsole(io, false, "WARN: "*msg)       
+            @warn msg
+        else
+            isparallel = false       
+            msg = string("reset isparallel=",isparallel, " since isparalleloffspring=",isparalleloffspring,
+                " and isinfererror=", isinfererror)      
+            printconsole(io, verbose, msg)                   
+        end
+    end
+    isparallel,isparalleloffspring
+end
+
+function phase_refine!(polygeno::PolyGeno;
+    doseerr::Real=0.01,
+    seqerr::Real=0.001,
+    chrpairing_phase::Integer=22,
+    chrpairing_refine::Integer=22,
+    chrpairing::Integer=44,
+    chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
+    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
+    isparallel::Bool=true,
+    delmarker::Bool=true,
+    delsiglevel::Real=0.05,
+    maxstuck::Integer=5,maxiter::Integer=30,
+    minrun::Integer=3,maxrun::Integer=10,
+    byparent::Union{Nothing,Bool}=nothing,
+    byneighbor::Union{Nothing,Bool}=nothing,
+    refhapfile::Union{Nothing,AbstractString} = nothing,
+    correctthreshold::AbstractFloat=0.15,
+    refinemap::Bool=false,
+    refineorder::Bool=false,
+    maxwinsize::Integer=50,
+    inittemperature::Real=4,
+    coolingrate::Real=0.5,
+    stripdis::Real=20, # centiMorgan
+    maxdoseerr::Real=0.5,
+    skeletonsize::Integer=50,
+    missingstring::AbstractString="NA",
+    isplot::Bool=false,
+    outstem::Union{Nothing,AbstractString}="outstem",
+    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
+    workdir::AbstractString = pwd(),
+    verbose::Bool=true)
+    if logfile === nothing
+        io=nothing
+    else
+        if typeof(logfile) <: AbstractString
+            io=open(getabsfile(workdir,logfile), "w+")
+            printpkgst(io,verbose,"PolyOrigin")
+            starttime = time()
+            printconsole(io,verbose,string(repeat("=",27),"phase_refine!",repeat("=",27)))
+            printconsole(io,verbose,string("phase_refine!, logfile=", logfile, ", ", Dates.now()))
+        else
+            io=logfile
+        end
+    end
+    if kindofgeno(polygeno.parentgeno) == "phasedgeno"
+        getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
+    else
+        printconsole(io,verbose,string(repeat("-",29),"phasing",repeat("-",30)))
+        polyPhase!(polygeno;
+            doseerr, seqerr, chrpairing_phase, chrsubset, snpsubset,
+            isparallel, delmarker, delsiglevel, maxstuck, maxiter,
+            minrun, maxrun, byparent, byneighbor, refhapfile,
+            missingstring, outstem, logfile=io, workdir, verbose
+        )
+    end
+    if refinemap
+        printconsole(io,verbose,string(repeat("-",28),"refinning",repeat("-",29)))
+        if correctthreshold<1.0
+            polyReconstruct!(polygeno;
+                doseerr, seqerr, chrpairing=chrpairing_refine, 
+                isinfererror = true, 
+                chrsubset=nothing, snpsubset=nothing,
+                isparallel, isparalleloffspring = false, 
+                correctthreshold, byneighbor,missingstring,
+                outstem=nothing, isplot=false, logfile=io, workdir, verbose
+            )
+        end        
+        polyMapRefine!(polygeno;
+            doseerr, chrpairing, chrsubset=nothing, snpsubset=nothing,
+            isparallel, byneighbor, refineorder, 
+            maxwinsize, inittemperature,
+            coolingrate, stripdis, maxdoseerr, skeletonsize,
+            outstem, isplot, logfile=io, workdir, verbose
+        )
+    end
+    if typeof(logfile) <: AbstractString
+        printconsole(io,verbose,string("End, ", Dates.now(),", total time used = ",
+            round(time()-starttime), " seconds by phase_refine!"))
+        printconsole(io,verbose,repeat("=",66))
+        close(io)
+    elseif typeof(logfile) <: IO
+        flush(io)
+    end
+    polygeno
 end

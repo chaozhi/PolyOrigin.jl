@@ -1,18 +1,28 @@
 
+function kronvec(ma::AbstractMatrix, mb::AbstractMatrix, vx::AbstractVector)
+    mx = reshape(vx, size(mb,2),:)
+    vec(mb * mx * ma')
+end
+
 # denote by x_t the hidden state and y_t the obseved data at time t=1...T*
 # fwprob[t] =  Pr(x[t]|y[1:t])
 # fwscale[[t]] = Pr(y[t]|y[1:t-1])
-function forward(initprob::Vector{T},tranprobseq::Vector{Matrix{T}},
+function forward(initprob::Vector{Vector{T}},
+    tranprobseq::Vector{Vector{Matrix{T}}},
     dataprobseq::Vector{Vector{T}}) where T <: AbstractFloat
-    fwprob=Vector{Vector{T}}()
+    fwprob= Vector{Vector{T}}()
     fwscale=Vector{T}()
-    prob=initprob .* dataprobseq[1]
+    # prob=initprob .* dataprobseq[1]
+    prob=kron(initprob...) .* dataprobseq[1]
     scale=sum(prob)
     prob /= scale
     push!(fwscale,scale)
     push!(fwprob,prob)
     for t=2:size(dataprobseq,1)
-        prob = (tranprobseq[t-1]' * fwprob[t-1]) .* dataprobseq[t]
+        # prob = (tranprobseq[t-1]' * fwprob[t-1]) .* dataprobseq[t]
+        tranprob = [i[t-1]' for i=tranprobseq]
+        prob0 = kronvec(tranprob..., fwprob[t-1])
+        prob = prob0 .* dataprobseq[t]
         scale=sum(prob)
         prob /= scale
         push!(fwscale,scale)
@@ -21,9 +31,8 @@ function forward(initprob::Vector{T},tranprobseq::Vector{Matrix{T}},
     (fwprob=fwprob,fwscale=fwscale)
 end
 
-calloglike(fwscale::Vector{T}) where T <: AbstractFloat = sum(log.(fwscale))
-
-function calloglike(initprob::Vector{T},tranprobseq::Vector{Matrix{T}},
+function calloglike(initprob::Vector{Vector{T}},
+    tranprobseq::Vector{Vector{Matrix{T}}},
     dataprobseq::Vector{Vector{T}}) where T <: AbstractFloat
     fwprob,fwscale = forward(initprob,tranprobseq,dataprobseq)
     calloglike(fwscale)
@@ -31,14 +40,16 @@ end
 
 # denote by x_t the hidden state and y_t the obseved data at time t=1...T*
 # bwprob[t] =  Pr(y[t+1:T]|x[t]) / Pr(y[t+1:T]|y[1:t])
-function backward(tranprobseq::Vector{Matrix{T}},
+function backward(tranprobseq::Vector{Vector{Matrix{T}}},
     dataprobseq::Vector{Vector{T}},
     fwscale::Vector{T}) where T <: AbstractFloat
     bwprob=Vector{Vector{T}}()
     prob=ones(size(tranprobseq[end],2))
     pushfirst!(bwprob,prob)
     for t=size(dataprobseq,1)-1:-1:1
-        prob = tranprobseq[t] * (dataprobseq[t+1] .* bwprob[1])
+        # prob = tranprobseq[t] * (dataprobseq[t+1] .* bwprob[1])
+        tranprob = [i[t]' for i=tranprobseq]
+        prob = kronvec(tranprob..., (dataprobseq[t+1] .* bwprob[1]))
         prob /= fwscale[t+1]
         pushfirst!(bwprob,prob)
     end
@@ -47,7 +58,7 @@ end
 
 # denote by x_t the hidden state and y_t the obseved data at time t=1...T*
 # logbwprob[t] = log(Pr(y[t+1:T],x[t]))
-function logbackward(tranprobseq::Vector{Matrix{T}},
+function logbackward(tranprobseq::Vector{Vector{Matrix{T}}},
     dataprobseq::Vector{Vector{T}},
     logbwinit::Vector{T}=zeros(T,length(dataprobseq[end]))) where T <: AbstractFloat
     nseq = length(dataprobseq)
@@ -57,29 +68,15 @@ function logbackward(tranprobseq::Vector{Matrix{T}},
         logmax = max(logbwprob[t+1]...)
         prob = exp.(logbwprob[t+1] .- logmax)
         #  log(0.0) = -inf
-        logbwprob[t] = log.(tranprobseq[t] * (dataprobseq[t+1] .* prob)) .+ logmax
+        tranprob = [i[t]' for i=tranprobseq]
+        temp = kronvec(tranprob..., (dataprobseq[t+1] .* prob))
+        logbwprob[t] = log.(temp) .+ logmax
     end
     logbwprob
 end
 
-# """
-#     posteriorDecode(initprob,tranprobseq, dataprobseq)
-#
-# calculate marginal posterior probablities using the HMM posterior decoding
-# algorightm.
-#
-# # Arguments
-#
-# `initprob::Vector{T}`: initial probablity vector
-#
-# `tranprobseq::Vector{Matrix{T}}`: a vector of transition probaiblity
-# matrix from one time to the next
-#
-# `dataprobseq::Vector{Vector{T}}`: a vector of emission probability
-# vector at each time
-#
-# """
-function posteriorDecode(initprob::Vector{T},tranprobseq::Vector{Matrix{T}},
+function posteriorDecode(initprob::Vector{Vector{T}},
+    tranprobseq::Vector{Vector{Matrix{T}}},
     dataprobseq::Vector{Vector{T}}) where T <: AbstractFloat
     fwprob,fwscale = forward(initprob,tranprobseq,dataprobseq)
     loglike = calloglike(fwscale)

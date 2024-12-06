@@ -26,14 +26,14 @@ end
 # eg. n=4, nvalents =[2,2] for parent1, nvalents = [4,4] for parent2
 # then nvalentslist=[[2,2],[4,4]]
 # it allows that a zygote consists of a single gamete, e.g., nvalentslist=[[2,2]]
-function getzygotetran(d::AbstractFloat,nvalentslist::AbstractVector{Array{Int64,1}})
-    ls=[getgametetran(d,nvalents) for nvalents=nvalentslist]
-    foldl(kron,ls)
-end
+# function getzygotetran(d::AbstractFloat,nvalentslist::AbstractVector{Array{Int64,1}})
+#     ls=[getgametetran(d,nvalents) for nvalents=nvalentslist]
+#     foldl(kron,ls)
+# end
 
 # a gamate consists of n/2 bivalent chromosomes or one multivalent pairing
 # e.g. n=6, nvalents = [2,2,2]  or [6,6,6]
-function getgametetran(d::AbstractFloat,nvalents::AbstractVector{Int64})
+function getgametetran(d::AbstractFloat,nvalents::AbstractVector)
     ls=[getvalenttran(d,n) for n=nvalents]
     foldl(kron,ls)
 end
@@ -98,6 +98,7 @@ function getgametevalent(ploidy::Integer,maxvalent::Integer)
             res = vcat(res,ls2)
         end
     end
+    # Vector{Vector{Vector{Int8}}}(res)
     res
 end
 
@@ -130,7 +131,7 @@ function getzygotevalent(ploidypp::AbstractVector, maxvalentpp::AbstractVector,i
             len[1]*10+len[2] > chrpairing ? missing : i
         end for i=res]
     end
-    res
+    Matrix{Vector{Vector{Vector{Int8}}}}(res)    
 end
 
 
@@ -188,76 +189,6 @@ function getzygoteneighbor(ploidypp::AbstractVector, maxvalentpp::AbstractVector
     end
 end
 
-# function getgametestate(ploidy::Integer, maxvalent::Integer)
-#     setls=[collect(1:ploidy) for i=1:ploidy ÷ 2]
-#     res = getouterlist(setls...)
-#     if maxvalent==2
-#         bool=[length(unique(i))==length(i) for i=res]
-#         res=res[bool]
-#     elseif iseven(maxvalent)
-#         a = [max([sum(i.==j ) for j=unique(i)]...) for i=res]
-#         res=res[a .<= (maxvalent ÷ 2)]
-#     else
-#         @error string("wrong maxvalent = ",maxvalent, ", maxvalent must be 2, 4, 6, or 8.")
-#     end
-#     res
-# end
-
-# function getzygotestate(ploidypp::AbstractVector, maxvalentpp::AbstractVector,isselfing::Bool)
-#     if length(ploidypp)==2
-#         n1,n2=ploidypp
-#         b1,b2=maxvalentpp
-#         ss1=getgametestate(n1,b1)
-#         ss2=getgametestate(n2,b2)
-#         if isselfing
-#             if n1==n2
-#                 res=[vcat(i,j) for i=ss1 for j=ss2]
-#             else
-#                 @error string("selfing parent must have unique ploidy.")
-#             end
-#         else
-#             res=[vcat(i,j .+ n1) for i=ss1 for j=ss2]
-#         end
-#     elseif length(ploidypp)==1
-#         n1=first(ploidypp)
-#         b1=first(maxvalentpp)
-#         res = getgametestate(n1,b1)
-#     else
-#         error(string("length of ploidypp must be 1 or 2!, ploidypp =",ploidypp))
-#     end
-#     res
-# end
-
-# function getgametegroupstate(ploidy::Integer, maxvalent::Integer)
-#     res = getgametestate(ploidy,maxvalent)
-#     unique(sort.(res))
-# end
-#
-# function getzygotegroupstate(ploidypp::AbstractVector, maxvalentpp::AbstractVector,isselfing::Bool)
-#     if length(ploidypp)==2
-#         n1,n2=ploidypp
-#         b1,b2=maxvalentpp
-#         ss1=getgametegroupstate(n1,b1)
-#         ss2=getgametegroupstate(n2,b2)
-#         if isselfing
-#             if n1==n2
-#                 res=[vcat(i,j) for i=ss1 for j=ss2]
-#             else
-#                 @error string("selfing parent must have unique ploidy.")
-#             end
-#         else
-#             res=[vcat(i,j .+ n1) for i=ss1 for j=ss2]
-#         end
-#     elseif length(ploidypp)==1
-#         n1=first(ploidypp)
-#         b1=first(maxvalentpp)
-#         res = getgametegroupstate(n1,b1)
-#     else
-#         error(string("length of ploidypp must be 1 or 2!, ploidypp =",ploidypp))
-#     end
-#     res
-# end
-
 function getzygotestate(zygotevalent::AbstractMatrix)
     states = [ismissing(valent) ? missing : getouterlist(vcat(valent...)...) for valent = zygotevalent]
     states2 = collect(skipmissing(reshape(states,:)))
@@ -314,38 +245,16 @@ function getpriorstatespace(designinfo::DataFrame,parentinfo::DataFrame,
     end for pop = 1: size(designinfo,1)])
 end
 
-# function getrfseq(polygeno::PolyGeno,chr::Integer)
-#     deltd=diff(polygeno.markermap[chr][!,:position]) ./ 100.0
-#     # Haldane map function, here rfreq defined one chromsome pairing
-#     # so that the map function is the same as the diploid case
-#     rfseq =@. 0.5 - 0.5 * exp(-2 * deltd)
-#     rfseq
-# end
-
-function getpriorprocess(polygeno::PolyGeno,chr::Integer,chrpairing::Integer)
-    d = sort(digits(chrpairing))
-    chrpairing=sum([d[k]*10^(k-1) for k=1:length(d)])
-    maxvalent = max(d...)
-    ploidyls = polygeno.parentinfo[!,:ploidy]
-    maxvalentls=[min(maxvalent,ploidyls[i]) for i=1:length(ploidyls)]
-    markermap= polygeno.markermap
-    locseq = markermap[chr][!,:position] ./ 100
-    markerid = markermap[chr][!,:marker]
+function getpriorprocess(polygeno::PolyGeno,chr::Integer,maxvalent::Integer)
+    markerid = polygeno.markermap[chr][!,:marker]
+    locseq = polygeno.markermap[chr][!,:position] ./ 100
     priordict = Dict{String,MarkovPrior}()
-    for pop = 1: size(polygeno.designinfo,1)
-        gametecount=Vector(polygeno.designinfo[pop,2:end])
-        ploidypp=polygeno.parentinfo[gametecount .> 0,:ploidy]
-        maxvalentpp=maxvalentls[gametecount .>= 1]
-        isselfing = 2 in gametecount
-        if isselfing
-            ploidypp=repeat(ploidypp,2)
-            maxvalentpp=repeat(maxvalentpp,2)
-        end
-        zygotevalent=getzygotevalent(ploidypp,maxvalentpp,isselfing,chrpairing)
-        keyls = tovalentkey(zygotevalent)
-        indexls = [findfirst(x->(!ismissing(x)) && x==i,keyls) for i=skipmissing(unique(keyls))]
-        for k = indexls
-            strkey=keyls[k]
+    for p = 1:size(polygeno.parentinfo,1)
+        ploidypp=polygeno.parentinfo[p,:ploidy]
+        maxvalentpp=min(maxvalent,ploidypp)
+        gammetevalent = getgametevalent(ploidypp,maxvalentpp)
+        keyls = unique([join(length.(i),"-") for i=gammetevalent])
+        for strkey = keyls
             if  !haskey(priordict,strkey)
                 val = valentkey2priorproces(strkey,markerid,locseq)
                 push!(priordict,strkey => val)
@@ -355,43 +264,53 @@ function getpriorprocess(polygeno::PolyGeno,chr::Integer,chrpairing::Integer)
     priordict
 end
 
+function strkey2prior(priorprocess::AbstractDict, strkey::AbstractString)
+    ls=[priorprocess[i] for i=split(strkey,"|")]
+    startprob = [i.startprob for i=ls]
+    tranprobseq = [Vector{Matrix{Float64}}(i.tranprobseq[i.markerincl][1:end-1]) for i=ls]
+    (markerincl=ls[1].markerincl,startprob=startprob, tranprobseq=tranprobseq)
+end
+
+function getstartprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector)
+    dict= Dict([begin
+            priorls=[priorprocess[i] for i=split(strkey,"|")]
+            startprob = [i.startprob for i=priorls]
+            strkey => kron(startprob...)
+        end for strkey = unique(bvkeyls)])
+    [get(dict,i, nothing) for i=bvkeyls]
+end
+
+function gettranprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector, t::Integer)
+    dict= Dict([begin
+            priorls=[priorprocess[i] for i=split(strkey,"|")]
+            tranprob = [i.tranprobseq[t] for i=priorls]
+            strkey => kron(tranprob...)
+        end for strkey = unique(bvkeyls)])
+    [get(dict,i, nothing) for i=bvkeyls]
+end
+
 mutable struct MarkovPrior
     # for a given linkage group
     startprob::Vector{Float64}
     tranprobseq::Union{Missing,Vector{Union{Missing,Matrix{Float64}}}}
-    nvalent::Vector{Vector{Int64}}
+    nvalent::Vector{Int64}
     markerdeltd::Vector{Union{Missing,Float64}}
     markerincl::BitVector
     markerid::Vector{String}
     function MarkovPrior(startprob,tranprobseq,nvalent,markerdeltd,markerincl,markerid)
         dims = length.([markerdeltd,markerincl,markerid])
-        ismissing(tranprobseq) || push!(dims,size(tranprobseq,1))
         if length(union(dims))!=1
             @error("inconsistent number of markers: ",dims)
         end
-        # if !ismissing(tranprobseq)
-        #     s = length(startprob)
-        #     dims = union(size.(skipmissing(tranprobseq)),[(s,s)])
-        #     if length(union(dims))!=1
-        #         @error("inconsistent number of states: ",dims)
-        #     end
-        # end
         new(startprob,tranprobseq,nvalent,markerdeltd,markerincl,markerid)
     end
 end
 
 function valentkey2priorproces(valentkey::AbstractString,
     markerid::AbstractVector,locseq::AbstractVector)
-    # Haldane map function, here rfreq defined one chromsome pairing
-    # so that the map function is the same as the diploid case
     deltd = abs.(diff(locseq))
-    nvalent = map(x->parse.(Int,x),split.(split(valentkey,"|"),"-"))
-    if max(length.(nvalent)...) >=3 && max(vcat(nvalent...)...)>=4
-        tranprobseq = missing
-    else
-        # tranprobseq[i] =tranprob between marker i and i+1
-        tranprobseq =vcat([getzygotetran(i,nvalent) for i=deltd],missing)
-    end
+    nvalent = parse.(Int,split(valentkey,"-"))
+    tranprobseq =vcat([getgametetran(i,nvalent) for i=deltd],missing)
     # nstate=size(tranprob[1],1)
     nstate=foldr(*,vcat(nvalent...))
     startprob = [1.0/nstate for i=1:nstate]
@@ -399,7 +318,6 @@ function valentkey2priorproces(valentkey::AbstractString,
     markerdeltd = vcat(deltd,[0])
     MarkovPrior(startprob,tranprobseq,nvalent,markerdeltd,markerincl,deepcopy(markerid))
 end
-
 
 function reverseprior!(pri::MarkovPrior)
     bool=pri.markerincl
@@ -413,7 +331,6 @@ function reverseprior!(pri::MarkovPrior)
     reverse!(pri.markerid)
     pri
 end
-
 
 function setmarkerincl!(pri::MarkovPrior,markerincl::BitVector)
     if length(pri.markerincl) != length(markerincl)
@@ -433,7 +350,7 @@ function setmarkerincl!(pri::MarkovPrior,markerincl::BitVector)
     tran = similar(pri.tranprobseq)
     tran .= missing
     ii = findall(markerincl)[1:end-1]
-    tran[ii]=[getzygotetran(i,pri.nvalent) for i=deltd[ii]]
+    tran[ii]=[getgametetran(i,pri.nvalent) for i=deltd[ii]]
     pri.tranprobseq = tran
     pri.markerincl = markerincl
     pri.markerdeltd = deltd
@@ -453,7 +370,7 @@ end
 function setdistanceat!(priorprocess::AbstractDict,tnow::Integer,tnowdis::Real)
     for (strkey, pri) in priorprocess
         pri.markerdeltd[tnow] = tnowdis
-        pri.tranprobseq[tnow] = getzygotetran(tnowdis,pri.nvalent)
+        pri.tranprobseq[tnow] = getgametetran(tnowdis,pri.nvalent)
     end
     priorprocess
 end

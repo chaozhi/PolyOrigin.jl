@@ -221,10 +221,12 @@ function readPolyGeno(inpugenofile::AbstractString, inpupedfile::AbstractString;
         end
         markermap[!,:position] .*= recomrate*10^(-6.0)
     else
-        maxloc = max(markermap[!,:position]...)
-        if maxloc>10^6.0
-            error(string("marker positions in genetic map must be in centiMorgan"))
-        end
+        if eltype(markermap[!,:position]) <: Real
+            maxloc = max(markermap[!,:position]...)
+            if maxloc>10^6.0
+                error(string("marker positions in genetic map must be in centiMorgan"))
+            end
+        end        
     end
     markermap2=[DataFrame(i) for i=groupby(markermap,:chromosome)]
     verbose && @info string("data: #pop=", size(designinfo,1),
@@ -239,29 +241,33 @@ function readPolyGeno(inpugenofile::AbstractString, inpupedfile::AbstractString;
 end
 
 function parsemarkermap!(markermap::DataFrame)
-    allunique(markermap[:,1]) || @error ("marker IDs are not unique")
-    snpindexlist=splitindex(markermap[:,2])
-    chridls = [string(markermap[first(i),2]) for i=snpindexlist]
-    if !allunique(chridls)
-        @error ("some markers in the same chromosome are not consecutive")
-    end
+    rename!(markermap,[:marker,:chromosome,:position])
     for i=1:2
         markermap[!,i]=string.(strip.(string.(markermap[!,i])))
+    end
+    # check unqiue of marker id
+    allunique(markermap[:,1]) || @error ("marker IDs are not unique")
+    # check unqiue of chrid
+    snpindexlist=splitindex(markermap[:,2])
+    chridls = [markermap[first(i),2] for i=snpindexlist]
+    if !allunique(chridls)
+        @error ("some markers in the same chromosome are not consecutive")
     end
     # set chrid with same string length
     # idlen = max(length.(markermap[!,2])...)
     # markermap[!,2]=[lpad(i,idlen) for i=markermap[!,2]]
     # check position
-    markermap[!,3]=Float64.(markermap[!,3])
-    bool=[begin
-        A=markermap[i,3]
-        all(A[1:end-1] .<= A[2:end])
-    end for i=snpindexlist]
-    if !all(bool)
-        wrongchrs = chridls[.!bool]
-        @error string("markers positions in chrs=",wrongchrs, " are not in non-descreasing order")
+    if eltype(markermap[!,3]) <: Real
+        markermap[!,3]=Float64.(markermap[!,3])
+        bool=[begin
+            A=markermap[i,3]
+            all(A[1:end-1] .<= A[2:end])
+        end for i=snpindexlist]
+        if !all(bool)
+            wrongchrs = chridls[.!bool]
+            @error string("markers positions in chrs=",wrongchrs, " are not in non-descreasing order")
+        end
     end
-    rename!(markermap,[:marker,:chromosome,:position])
     markermap
 end
 
@@ -492,8 +498,8 @@ function getsubPolyGeno!(polygeno::PolyGeno;
     markermap = polygeno.markermap
     nchr=length(markermap)
     nsnp = max(size.(polygeno.markermap,1)...)
-    chrsubset2 = chrsubset == nothing ? (1:nchr) : chrsubset[chrsubset.<= nchr]
-    snpsubset2 = snpsubset == nothing ? (1:nsnp) : snpsubset
+    chrsubset2 = isnothing(chrsubset) ? (1:nchr) : chrsubset[chrsubset.<= nchr]
+    snpsubset2 = isnothing(snpsubset) ? (1:nsnp) : snpsubset
     snpsubsetlist = [snpsubset2[snpsubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
     polygeno.markermap= map((x,y)->markermap[x][y,:],chrsubset2,snpsubsetlist)
     polygeno.parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,snpsubsetlist)
@@ -507,8 +513,8 @@ function getsubPolyGeno(polygeno::PolyGeno;
     markermap = polygeno.markermap
     nchr=length(markermap)
     nsnp = max(size.(polygeno.markermap,1)...)
-    chrsubset2 = chrsubset == nothing ? (1:nchr) : chrsubset[chrsubset.<= nchr]
-    snpsubset2 = snpsubset == nothing ? (1:nsnp) : snpsubset
+    chrsubset2 = isnothing(chrsubset) ? (1:nchr) : chrsubset[chrsubset.<= nchr]
+    snpsubset2 = isnothing(snpsubset) ? (1:nsnp) : snpsubset
     snpsubsetlist = [snpsubset2[snpsubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
     markermap= map((x,y)->markermap[x][y,:],chrsubset2,snpsubsetlist)
     parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,snpsubsetlist)

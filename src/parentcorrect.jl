@@ -40,7 +40,7 @@ function parentCorrect!(phasedgeno::PolyGeno,chr::Integer,
     else
         res=[["marker", "chromosome", "parent", "old_genotype", "new_genotype",
             "old_nerr", "new_nerr"]]
-        res2=permutedims(hcat(res...))
+        res2=permutedims(reduce(hcat,res))
         changedf = DataFrame(res2[2:end,:],Symbol.(res2[1,:]))
     end
     changedf
@@ -66,7 +66,7 @@ function getchangesum(changedf::DataFrame)
         nflip = sum(abs.(newphase2 - oldphase2))
         push!(res,[isdosediff,nflip,nerrdiff])
     end
-    res2=hcat(res...)'
+    res2=reduce(hcat,res)'
     ndosediff,nalleleflip,nerrdiff =sum(res2,dims=1)
     nphasediff = size(changedf,1)
     (ndosediff=ndosediff,nphasediff=nphasediff,nalleleflip=nalleleflip,nerrdiff=nerrdiff)
@@ -76,7 +76,7 @@ function getchrfhaplo(desinfo::DataFrame,chrparentgeno::AbstractMatrix)
     Dict([begin
         popid=desinfo[i,1]
         hh=chrparentgeno[:,Vector(desinfo[i,2:end]) .> 0]
-        popid=>hcat([vcat(i...) for i=eachrow(hh)]...)'
+        popid=>reduce(hcat,[vcat(i...) for i=eachrow(hh)])'
     end for i=1:size(desinfo,1)])
 end
 
@@ -156,6 +156,7 @@ function getchrbadsnp(phasedgeno::PolyGeno, chr::Integer,
             push!(res,[chr,snps[i], ww[i]*pp])
         end
     end
+    # ArgumentError: reducing over an empty collection is not allowed
     res2=permutedims(hcat(res...))
     if isempty(res2)
         Matrix(undef,0,0)
@@ -163,7 +164,7 @@ function getchrbadsnp(phasedgeno::PolyGeno, chr::Integer,
         res3=sortsplit(res2,2)
         res4=[[i[1,1],i[1,2],sum(i[:,3])] for i=res3]
         # return matrix with cols: ch_index, snp_index, parent_weights
-        permutedims(hcat(res4...))
+        permutedims(reduce(hcat,res4))
     end
 end
 
@@ -180,7 +181,7 @@ function getfhaplomissp(phasedgeno::PolyGeno,p::Integer,chr::Integer,snp::Intege
             hhset2=repeat(permutedims(chrparentgeno[snp,:]),length(hhset))
             hhset2[:,p ] = hhset
             hhset3=hhset2[:,parents]
-            hhset4=hcat([vcat(i...) for i=eachrow(hhset3)]...)'
+            hhset4=reduce(hcat,[vcat(i...) for i=eachrow(hhset3)])'
             popid=>hhset4
         else
             popid=>[]
@@ -210,7 +211,7 @@ function getdosemissp(chrgenoprob::AbstractVector,priorspace::AbstractDict,
         for off=offls
             I,V = findnz(chrgenoprob[off][snp,:])
             d=[sum(fhaplo[:,i],dims=2) for i=states[I]]
-            dd=hcat(d...)
+            dd=reduce(hcat,d)
             prob = zeros(size(dd,1),offploidy[off]+1)
             for i=1:size(dd,1),j=1:size(dd,2)
                 prob[i,dd[i,j]+1] += V[j]
@@ -222,7 +223,7 @@ function getdosemissp(chrgenoprob::AbstractVector,priorspace::AbstractDict,
         end
     end
     offls = findall(.!ismissing.(res))
-    estdose = hcat(res[offls]...)
+    estdose = reduce(hcat,res[offls])
     hhset,offls,estdose
 end
 
@@ -252,7 +253,7 @@ function getchrbadchange!(chrgenoprob::AbstractVector,chrbadsnp::AbstractMatrix,
                 else
                     @error string("unknown offspring data type: ",kind)
                 end
-                mismatch2=[collect(skipmissing(i)) for i in mismatch]                                
+                mismatch2=[collect(skipmissing(i)) for i=mismatch]
                 nerr = [isempty(i) ? 0 : sum(i) for i in mismatch2]
                 newerr,newindex = findmin(nerr)
                 old = phasedgeno.parentgeno[chr][snp,p]
@@ -284,7 +285,7 @@ function getchrbadchange!(chrgenoprob::AbstractVector,chrbadsnp::AbstractMatrix,
     pushfirst!(res,["marker", "chromosome", "parent",
         "chrindex", "markerindex", "parentindex",
         "new_nerr","new_genotype", "old_nerr", "old_genotype"])
-    res2=permutedims(hcat(res...))
+    res2=permutedims(reduce(hcat,res))
     for j=[8,10]
         res2[2:end,j]=stringjoin.(res2[2:end,j],"|")
     end

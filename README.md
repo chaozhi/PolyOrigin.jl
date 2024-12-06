@@ -13,7 +13,7 @@ See [PolyOriginR](https://github.com/chaozhi/PolyOriginR) for running PolyOrigin
 
 ## Features
 
-- Apply to connected F1 in tetraploid (TODO for higher ploidy levels. Limited tests for diploids.)
+- Apply to connected polyploid (2x, 4x, or 6x) F1 crosses
 - Apply to SNP array and GBS data
 - Robust to dosage errors in SNP array data
 - Robust to dosage uncertainties in low read depth GBS data
