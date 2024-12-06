@@ -8,7 +8,7 @@ isdir(joinpath(pkgdir(PolyOrigin),"docs","build")) && error("delete old build!")
 makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",
-    repo="https://github.com/chaozhi/PolyOrigin.jl/blob/{commit}{path}#L{line}",
+    repo="https://github.com/chaozhi/PolyOrigin.jl/blob/{commit}{path}#L{line}",    
     sitename="PolyOrigin.jl",
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", "false") == "true",

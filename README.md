@@ -21,7 +21,7 @@ See [PolyOriginR](https://github.com/chaozhi/PolyOriginR) for running PolyOrigin
 
 ## Installation
 
-From the julia (>=v1.6.7, 64-bit) REPL mode, run
+From the julia (>=v1.10.7, 64-bit) REPL mode, run
 
 ```
 julia>]add https://github.com/chaozhi/PolyOrigin.jl
