@@ -1,7 +1,7 @@
 name = "PolyOrigin"
 uuid = "16de7d52-3108-11e9-206c-050f294fabfc"
 authors = ["Zheng, Chaozhi <chaozhi.zheng@wur.nl>"]
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
@@ -31,11 +31,13 @@ CSV = "^0.10"
 Combinatorics = "^1.0"
 DataFrames = "^1.5"
 DataStructures = "^0.18"
+DelimitedFiles = "^1.9"
 Distributions = "^0.25"
 GraphRecipes = "^0.5"
 LightGraphs = "^1.3"
 Plots = "^1.40"
 ProgressMeter = "^1.10.2"
+Statistics = "^1.9"
 StatsBase = "^0.34"
 StatsPlots = "^0.15"
 julia = "^1.10"

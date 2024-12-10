@@ -145,6 +145,7 @@ function polyReconstruct!(phasedgeno::PolyGeno;
                 doseerr,chrpairing,
                 priorspace,correctthreshold,byneighbor, isinfererror, 
                 isparalleloffspring, io,verbose))
+            @everywhere GC.gc()
         end
     end
     msg = string("tused=",round(tused,digits=1), "s for all ", nchr, " chromosomes")

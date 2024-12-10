@@ -135,8 +135,19 @@ function getzygotevalent(ploidypp::AbstractVector, maxvalentpp::AbstractVector,i
 end
 
 
+gametevalentdiff(v1,v2) = length(v1) - length(intersect(v1,v2)) 
 function getgameteneighbor(gametevalents::AbstractVector)
-    valents2=unique.(gametevalents)
+    ploidy = length(first(gametevalents))        
+    dmax = max(2, div(ploidy,2)-1)
+    [begin
+        v = gametevalents[s]
+        dls = [gametevalentdiff(v,i) for i in gametevalents]
+        findall(dls .<= dmax)
+    end for s=eachindex(gametevalents)]
+end
+
+function getgameteneighbor_old(gametevalents::AbstractVector)
+    valents2=gametevalents
     rule= Dict(valents2 .=> 1:length(valents2))
     [begin
         v=valents2[s]
