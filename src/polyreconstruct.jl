@@ -180,7 +180,7 @@ function polyReconstruct!(phasedgeno::PolyGeno;
         end                
         # visualize results
         plot_valent_DR_recom!(polyancestry; 
-            isplot, minprob=0.5, fontsize=14, chrpairing, 
+            isplot, minprob=0.5, fontsize=14,  
             workdir, outstem, io,verbose
         )        
         # save correction 

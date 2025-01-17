@@ -66,7 +66,7 @@ function plotCondprob(polyancestry::PolyAncestry;
     titlestem = ishaploprob ? "Haplotype probablility" : "Genotype probablility"
     plot!(ibdmap,xy[1,:],xy[2,:],
         line = boundaryline,
-        legend=false,
+        legend=false,        
         xlabel="SNP index",
         ylabel=ylabel,
         title=string(titlestem, " for ",off,"th offspring =",offid2),
@@ -947,6 +947,8 @@ function plot_doublereduction(polyancestry::PolyAncestry;
     markersize::Real= 3,         
     fontsize = 14, 
     isannotate::Real=true, 
+    marker_colors = nothing, 
+    drlabels = "", 
     plotkeyargs...)
     hasdr = all([in("doublereduction",names(i)) for i in polyancestry.markermap])
     if !hasdr
@@ -978,6 +980,7 @@ function plot_doublereduction(polyancestry::PolyAncestry;
         xlabel = "Genetic position(cM)", 
         ylabel = "Double reduction", 
         legend = false,
+        labels = "", 
         grid = false,                
         left_margin=15Plots.mm,         
         bottom_margin=15Plots.mm,
@@ -985,7 +988,7 @@ function plot_doublereduction(polyancestry::PolyAncestry;
         titlefontsize = fontsize,          
         tickfontsize = fontsize, 
         guidefontsize = fontsize, 
-        legendfontsize= fontsize,             
+        legendfontsize= fontsize,                     
         plotkeyargs...,
     )
     xminls = minimum.(xposls)
@@ -994,6 +997,7 @@ function plot_doublereduction(polyancestry::PolyAncestry;
     plot!(fig,xy[:,1],xy[:,2];
         line = boundaryline,
         legend=false,
+        labels = "", 
     )
     if isannotate
         chrposls = (xminls[1:end-1] .+ xminls[2:end]) ./ 2    
@@ -1001,14 +1005,17 @@ function plot_doublereduction(polyancestry::PolyAncestry;
         annotate!(fig,[(chrposls[i], ymax*1.1, text(chridls[i], fontsize)) for i in eachindex(chrposls)])
     end
     # scatter        
-    marker_colors = distinguishable_colors(nchr, [RGB(1,1,1), RGB(0,0,0)], dropseed=true)
+    if isnothing(marker_colors)
+        marker_colors = distinguishable_colors(nchr, [RGB(1,1,1), RGB(0,0,0)], dropseed=true)
+    end
     for chr=1:nchr
         xls = xposls[chr]
         yls = yposls[chr]
         c = marker_colors[chr]
-        scatter!(fig,xls, yls, 
-            legend=false,
+        scatter!(fig,xls, yls,             
             marker=(:circle, markersize, 0.5, c,stroke(c)),            
+            legend=true, 
+            labels = drlabels, 
         )        
     end
     fig
@@ -1139,8 +1146,7 @@ function plot_posterior_recom(recomdf::AbstractDataFrame;
 end
 
 function plot_valent_DR_recom!(polyancestry::PolyAncestry;
-    isplot::Bool=true, 
-    chrpairing::Integer= 44, 
+    isplot::Bool=true,     
     valentthresh = 0.2, 
     prefstep = 0.001,
     minprob::Real= 0.5, 
@@ -1155,40 +1161,39 @@ function plot_valent_DR_recom!(polyancestry::PolyAncestry;
         figdir = joinpath(workdir, outstem * "_plots")
         isdir(figdir) || mkdir(figdir)
     end
-    if chrpairing > 22
-        try             
-            valentsum = cal_valentsum(polyancestry; valentthresh, prefstep)        
-            outfile = string(outstem,"_valentsummary.csv")
-            msg = string("valentsummary file: ", outfile)
+    
+    try             
+        valentsum = cal_valentsum(polyancestry; valentthresh, prefstep)        
+        outfile = string(outstem,"_valentsummary.csv")
+        msg = string("valentsummary file: ", outfile)
+        printconsole(io,verbose,msg)
+        savedict2dlm(getabsfile(workdir,outfile), valentsum)
+        if isplot
+            try
+                plot_valentsum(valentsum; workdir=figdir, outstem, io, verbose, 
+                    fontsize, markersize=6)            
+            catch err
+                @warn string("Failed to visualize valent summary!")
+                @error err
+            end
+        end
+    catch err
+        @warn string("Failed to calculate valent summary!")
+        @error err
+    end
+    try 
+        # double reduction 
+        cal_doublereduction!(polyancestry; minprob)                
+        if isplot 
+            fig = plot_doublereduction(polyancestry; fontsize, markersize=3);           
+            outfile = string(outstem,"_valent_DR.png")
+            savefig(fig, getabsfile(figdir,outfile))
+            msg = string("double reduction plot: ", outfile)
             printconsole(io,verbose,msg)
-            savedict2dlm(getabsfile(workdir,outfile), valentsum)
-            if isplot
-                try
-                    plot_valentsum(valentsum; workdir=figdir, outstem, io, verbose, 
-                        fontsize, markersize=6)            
-                catch err
-                    @warn string("Failed to visualize valent summary!")
-                    @error err
-                end
-            end
-        catch err
-            @warn string("Failed to calculate valent summary!")
-            @error err
         end
-        try 
-            # double reduction 
-            cal_doublereduction!(polyancestry; minprob)                
-            if isplot 
-                fig = plot_doublereduction(polyancestry; fontsize, markersize=3);           
-                outfile = string(outstem,"_valent_DR.png")
-                savefig(fig, getabsfile(figdir,outfile))
-                msg = string("double reduction plot: ", outfile)
-                printconsole(io,verbose,msg)
-            end
-        catch err
-            @warn string("Failed to visualize double reduction!")
-            @error err
-        end
+    catch err
+        @warn string("Failed to visualize double reduction!")
+        @error err
     end
 
     try 

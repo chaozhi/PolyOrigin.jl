@@ -443,9 +443,9 @@ function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractV
     end
     logl = sum(siblogl)
     loglhis =[logl]
-    nstuck = 0
+    nstuck = 0    
     for it=1:maxiter        
-        startt = time()
+        startt = time()        
         newfhaploindex,newbvpair,newsiblogl,newlogl=updatefhaplobvpair(fhaploindex,
             bvpair,siblogl,fhaploset,fhaploweight,doseerr,chrdose,
             priorspace,priorprocess,polygeno,byparent,byneighbor)
@@ -459,7 +459,7 @@ function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractV
             cond=all(map((x,y)->all(skipmissing(x .== y)),newfhaploindex,fhaploindex))
             cond && (nstuck += 1)
         end                        
-        msg = string("chr=",chrid,", run=", run,", it=", it)                 
+        msg = string("chr=",chrid,", run=", run,", it=", it)                         
         if nstuck>0 && delmarker
             doseerr=first(updatedoseerr(doseerr,bvpair,fhaploindex,fhaploset,
                 priorspace,priorprocess,chrdose,polygeno))
@@ -700,7 +700,7 @@ function uploglgrid!(loglgrid::AbstractMatrix,bvnow::Integer,
             bvprop = priorspace[popid]["valentneighbor"][bvnow][dims]
         end
         loglls = upoffmarglogl!(loglgrid,dataprob, popid, priorspace,priorprocess,bvprop,snporder)
-        logl = max(loglls...)
+        logl = maximum(loglls)
         bv = rand(bvprop[loglls .== logl])
         # println("   it=",it,",(bv,logl)=",(bv,logl))
         (bv == bvnow && logl ≈ loglnow) ? nstuck +=1 : nstuck = 0
@@ -733,14 +733,18 @@ function randbvprop(bvinput::Integer,loglinput::Real,dataprob::AbstractVector,
     bvhis = [0]
     isnothing(snporder) && (snporder=1:length(dataprob))
     for run=1:maxrun
-        bvnow = randbvprop(priorspace,polygeno,popid,loglgrid)
+        if run == 1
+            bvnow = bvinput
+        else
+            bvnow = randbvprop(priorspace,polygeno,popid,loglgrid)
+        end
         ismissing(bvnow) && break
         bv = uploglgrid!(loglgrid,bvnow,dataprob,priorspace,priorprocess,
             polygeno,popid,snporder)
         logl = loglgrid[bv]
         push!(bvhis,bv)
         push!(loglhis,logl)
-        nrepeat =sum(loglhis .== max(loglhis...))        
+        nrepeat = sum(loglhis .== max(loglhis...))        
         nrepeat == minrun && break
     end
     bv,logl=last(bvhis), last(loglhis)
