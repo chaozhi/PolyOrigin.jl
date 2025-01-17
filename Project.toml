@@ -1,6 +1,6 @@
 name = "PolyOrigin"
 uuid = "16de7d52-3108-11e9-206c-050f294fabfc"
-authors = ["Zheng, Chaozhi <chaozhi.zheng@wur.nl>"]
+authors = ["Zheng, Chaozhi <chaozhi@gmail.com>"]
 version = "1.0.2"
 
 [deps]
