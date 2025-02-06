@@ -371,8 +371,7 @@ function maprefine_chr(polygeno::PolyGeno, chr::Integer,
     checksnporder(snporder,priorprocess,markerid) || @error("inconsistent snporder and markerid!")
     checktranprobseq(priorprocess) || @error("inconsistent tranprobseq and deltd!")
     pri1=first(values(priorprocess))
-    excl = .!(pri1.markerincl)
-    issnpdel = excl[snporder]
+    issnpdel = .!(pri1.markerincl)    
     snpid = pri1.markerid
     snppos = round.(vcat([0],100*accumulate(+,pri1.markerdeltd[1:end-1])),digits=2)
     [snporder, issnpdel, snpid, snppos], io
