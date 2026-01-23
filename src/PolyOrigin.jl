@@ -23,7 +23,7 @@ export
     PolyGeno, PolyAncestry,
     readPolyGeno,readPolyAncestry,savePolyAncestry,
     polyOrigin,polyOrigin!,
-    plotCondprob, animCondprob,plotMapComp,calvalentfreq,plotvalentfreq,
+    plotCondprob, animCondprob,plotMapComp,cal_valentsum,plot_valentsum, 
     readTruegeno!,calAccuracy!
 
 include("basis.jl")

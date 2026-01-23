@@ -8,14 +8,14 @@ CurrentModule = PolyOrigin
 
 ## Features
 
-- Apply to connected F1 in tetraploid (TODO for higher ploidy levels)
+- Apply to connected polyploid (2x, 4x, or 6x) F1 crosses
 - Apply to SNP array and GBS data
 - Robust to dosage errors in SNP array data
 - Robust to dosage uncertainties in low coverage GBS data
 - Robust to errors in input genetic or physical map
 
 ## Installation
-From the julia (>v1.5.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
+From the julia (>v1.10.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl

@@ -1,7 +1,7 @@
-# using Pkg
-# Pkg.develop(path=abspath(@__DIR__, ".."))
+using Pkg
+Pkg.develop(path=abspath(@__DIR__, ".."))
 
-using Revise
+
 using PolyOrigin
 cd(@__DIR__)
 pwd()
