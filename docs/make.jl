@@ -1,15 +1,24 @@
 
-using PolyOrigin
 using Plots
 using Documenter
+try 
+    using PolyOrigin
+catch
+    using Pkg
+    Pkg.develop(PackageSpec(path = abspath(@__DIR__,"..")))
+    Pkg.instantiate()
+end
+
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
-isdir(joinpath(pkgdir(PolyOrigin),"docs","build")) && error("delete old build!")
+isdir(joinpath(@__DIR__,"build")) && error("delete old build!")
+
 
 makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
     sitename="PolyOrigin.jl",    
     repo = Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
+    # remotes = nothing,
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", nothing) == "true",
         prettyurls=true, # false for local browsing        
