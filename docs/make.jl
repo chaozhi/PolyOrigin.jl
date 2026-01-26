@@ -33,7 +33,7 @@ makedocs(
             "1 Prepare input" => "man/1_prepare_input.md",
             "2 Run polyOrigin" => "man/2_run_polyOrigin.md",
             "3 Understand output" => "man/3_understand_output.md",
-            # "4 Examples" => "man/4_examples.md",
+            "4 Examples" => "man/4_examples.md",
         ],
         "Library" => Any[
             "Public" => "lib/public.md",

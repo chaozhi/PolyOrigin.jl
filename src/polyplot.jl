@@ -624,7 +624,7 @@ function plot_valentgroupfreq(valentgroupfreq::AbstractDataFrame;
             bar(xls, yls;         
                 labels=first(name),
                 xlabel = "Parent", 
-                ylabel,    
+                ylabel,                    
                 barargs...,
                 plotkeyargs...,            
             )
@@ -632,7 +632,7 @@ function plot_valentgroupfreq(valentgroupfreq::AbstractDataFrame;
             groupedbar(name, y; 
                 group = ctg, 
                 xlabel = "Linkage group", 
-                ylabel,         
+                ylabel,                         
                 barargs...,      
                 plotkeyargs...,            
             )
