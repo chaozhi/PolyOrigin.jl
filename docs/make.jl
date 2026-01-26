@@ -46,3 +46,6 @@ deploydocs(;
     repo="github.com/chaozhi/PolyOrigin.jl.git",           
     devbranch = "main" 
 )
+
+
+# cd(@__DIR__)
