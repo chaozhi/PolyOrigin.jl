@@ -1,12 +1,11 @@
 # __precompile__()
 
 """
-PolyOrigin is a package for haplotype reconstruction in connected polyploid F1
+    PolyOrigin 
+a package for haplotype reconstruction in connected polyploid F1
 populations. See also: [`polyOrigin`](@ref), [`polyOrigin!`](@ref).
 """
 module PolyOrigin
-
-# TODO: speed up change dataprob matrix to vector of vector for each marker, for a given offspring
 
 using LinearAlgebra, SparseArrays, Random, Statistics
 using Pkg, DelimitedFiles, Printf,Serialization, Dates
