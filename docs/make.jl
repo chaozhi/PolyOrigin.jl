@@ -17,12 +17,14 @@ makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
     sitename="PolyOrigin.jl",    
-    repo = GitHub("chaozhi", "PolyOrigin.jl"),    
+    # repo =  Documenter.Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
+    repo = "https://github.com/chaozhi/PolyOrigin.jl",
     # remotes = nothing,
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", nothing) == "true",
         prettyurls=true, # false for local browsing        
-        canonical="https://chaozhi.github.io/PolyOrigin.jl",        
+        canonical="https://chaozhi.github.io/PolyOrigin.jl",      
+        repolink = "https://github.com/chaozhi/PolyOrigin.jl",  
     ),
     pages = [
         "Home" => "index.md", "Manual" => Any[
