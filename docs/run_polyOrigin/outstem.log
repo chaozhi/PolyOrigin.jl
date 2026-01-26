@@ -1,0 +1,69 @@
+Julia version: 1.12.4
+Status `C:\Users\zheng026\.julia\environments\v1.12\Project.toml`
+  [16de7d52] PolyOrigin v1.0.3 `c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin\PolyOrigin\`
+===========================polyOrigin============================
+polyOrigin, logfile=outstem.log, 2026-01-26T11:44:48.377
+list of file args/options: 
+genofile = geno_disturbed.csv
+pedfile = ped.csv
+delimchar = ,
+missingstring = NA
+commentstring = #
+-----------------------------phasing------------------------------
+polyPhase!, logfile=IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin\PolyOrigin\docs\run_polyOrigin\outstem.log>), 2026-01-26T11:44:48.379
+list of option values: 
+doseerr = 0.01
+seqerr = 0.001
+chrpairing_phase = 22
+byparent = nothing
+byneighbor = true for max(ploidy) >= 6
+chrsubset = all chromosomes
+snpsubset = all markers
+isparallel = false
+delmarker = true
+delsiglevel = 0.05
+maxstuck = 5
+maxiter = 30
+minrun = 3
+maxrun = 10
+refhapfile = nothing
+missingstring = NA
+outstem = outstem
+logfile = IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin\PolyOrigin\docs\run_polyOrigin\outstem.log>)
+workdir = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin\PolyOrigin\docs\run_polyOrigin
+verbose = true
+data: #pop=4, #parent=3, #offspring=120, #chr=1, #marker=120
+phasing connected parents: A, B, C
+set byparent=true
+chr=A, run=1, it=1, logl=-8743.9, stuck=0, err=0.01, tused=0.6s
+chr=A, run=1, it=2, logl=-6589.3, stuck=0, err=0.01, tused=0.5s
+chr=A, run=1, it=3, logl=-6562.9, stuck=0, err=0.01, tused=0.5s
+chr=A, run=1, it=4, logl=-5988.4, stuck=1, err=0.0559, tused=0.9s, #del=2
+chr=A, run=1, it=5, logl=-5671.3, stuck=0, err=0.0559, tused=0.5s
+chr=A, run=1, it=6, logl=-5673.2, stuck=1, err=0.0484, tused=0.9s, #del=0
+chr=A, run=1, it=7, logl=-5669.1, stuck=0, err=0.0484, tused=0.5s
+chr=A, run=1, it=8, logl=-5669.1, stuck=1, err=0.0484, tused=0.5s
+chr=A, run=1, it=9, logl=-5669.1, stuck=2, err=0.0484, tused=0.5s
+chr=A, run=1, it=10, logl=-5667.7, stuck=0, err=0.0484, tused=0.5s
+chr=A, run=1, it=11, logl=-5667.7, stuck=1, err=0.0484, tused=0.5s
+chr=A, run=1, it=12, logl=-5667.7, stuck=2, err=0.0484, tused=0.5s
+chr=A, run=1, it=13, logl=-5667.7, stuck=3, err=0.0484, tused=0.5s
+chr=A, run=1, it=14, logl=-5667.7, stuck=4, err=0.0484, tused=0.5s
+chr=A, run=1, it=15, logl=-5667.7, stuck=5, err=0.0484, tused=0.5s
+chr=A, run=2, it=1, logl=-7387.7, stuck=0, err=0.01, tused=0.5s
+chr=A, run=2, it=2, logl=-6528.1, stuck=0, err=0.01, tused=0.5s
+chr=A, run=2, it=3, logl=-6187.4, stuck=0, err=0.01, tused=0.5s
+chr=A, run=2, it=4, logl=-6182.2, stuck=0, err=0.01, tused=0.5s
+chr=A, run=2, it=5, logl=-6176.2, stuck=0, err=0.01, tused=0.5s
+chr=A, run=2, it=6, logl=-5721.9, stuck=1, err=0.0481, tused=0.9s, #del=0
+chr=A, run=2, it=7, logl=-5721.9, stuck=2, err=0.0481, tused=0.5s
+chr=A, run=2, it=8, logl=-5721.9, stuck=3, err=0.0481, tused=0.6s
+chr=A, run=2, it=9, logl=-5718.3, stuck=0, err=0.0481, tused=0.5s
+chr=A, run=2, it=10, logl=-5718.3, stuck=1, err=0.0481, tused=0.6s
+chr=A, run=2, it=11, logl=-5718.3, stuck=2, err=0.0481, tused=0.6s
+chr=A, run=2, it=12, logl=-5717.1, stuck=0, err=0.0481, tused=0.6s
+chr=A, run=2, it=13, logl=-5717.1, stuck=1, err=0.0481, tused=0.5s
+chr=A, run=2, it=14, logl=-5715.3, stuck=0, err=0.0481, tused=0.6s
+chr=A, run=2, it=15, logl=-5715.3, stuck=1, err=0.0481, tused=0.6s
+chr=A, run=2, it=16, logl=-5715.3, stuck=2, err=0.0481, tused=0.5s
+chr=A, run=2, it=17, logl=-5715.3, stuck=3, err=0.0481, tused=0.5s

@@ -17,7 +17,7 @@ makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
     sitename="PolyOrigin.jl",    
-    repo = Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
+    repo = Documenter.Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
     # remotes = nothing,
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", nothing) == "true",
