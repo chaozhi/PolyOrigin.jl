@@ -6,7 +6,7 @@ try
 catch
     using Pkg
     Pkg.develop(PackageSpec(path = abspath(@__DIR__,"..")))
-    Pkg.instantiate()
+    # Pkg.instantiate()
 end
 
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
@@ -17,7 +17,7 @@ makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
     sitename="PolyOrigin.jl",    
-    repo = Documenter.Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
+    repo = GitHub("chaozhi", "PolyOrigin.jl"),    
     # remotes = nothing,
     format=Documenter.HTML(;
         # prettyurls=get(ENV, "CI", nothing) == "true",
