@@ -133,7 +133,9 @@ function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
             printconsole(io,verbose,msg)
         end
     catch err
-        printconsole(io, false, "Failed to plot pedigree")
+        msg = "Failed to plot pedigree"
+        @warn msg
+        printconsole(io, false, "Warn: "*msg)
         @warn err
     end
     polyancestry=polyOrigin!(polygeno;

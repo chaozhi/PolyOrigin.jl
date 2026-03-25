@@ -289,20 +289,20 @@ function parseinputgeno(geno::AbstractVector;missingstring::AbstractString="NA")
         @error(string("inconsistent genotypes among chromosomes: ",kind))
     end
     kind2 = kind[1]
-    if kind2 <: AbstractString
-        geno2=[strip.(i) for i=geno]
-        isfloat= any([occursin(".",string(i...)) for i = geno2])
-        if isfloat
-            # missing is not allowed in probability
-            type = Float64
-            geno4 = [[map(x->parse.(type,x),i) for i=split.(j,"|")] for j=geno2]
-        else
-            # missing is allowed in read count
-            type = Int
-            geno3 = [[map(x->parse.(type,replace(x,missingstring=>"-1")),i) for i=split.(j,"|")] for j=geno2]
-            geno4 = [replace.(i,-1=>missing) for i=geno3]
-        end
-        return geno4
+    if kind2 <: Union{Missing,AbstractString}
+        [begin 
+            gg = join(skipmissing(unique(chrgeno)))
+            if occursin("|",gg) 
+                gdelim = "|"
+            elseif occursin("&",gg)
+                gdelim = "&"
+            else
+                @error string("unknown geno, gg=",gg)
+            end
+            type = occursin(".",gg) ? Float64 : Int 
+            missval = type == Int ? [0,0] : missing
+            [ismissing(i) ? missval : parse.(type,replace(split(i,gdelim),missingstring=>missing)) for i=chrgeno] 
+        end for chrgeno in geno]
     elseif kind2 <: Union{Missing,Integer}
         return geno
     else
