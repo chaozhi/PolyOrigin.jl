@@ -193,6 +193,17 @@ function readPolyGeno(inpugenofile::AbstractString, inpupedfile::AbstractString;
     noff = length(offid)
     # imort genofile
     geno=CSV.read(genofile, DataFrame; delim=delimchar,comment=commentstring,missingstring=missingstring)
+    # genofile resulting polyoriginsim, genofile for polyorgin v2
+    namels = names(geno)    
+    delcolls = ["physchrom", "physposbp", "parentformat","offspringformat",
+        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion"]
+    dells = [findfirst(==(i),namels) for i in delcolls]
+    deleteat!(dells,isnothing.(dells))
+    if !isempty(dells)
+        colls = setdiff(1:size(geno,2),dells)
+        geno = geno[!,colls]
+    end
+    # 
     if size(geno,2) != 3+nparent+noff
         error(string(genofile, " must contain #column = 3+#parent+#offspring = ",3+nparent+noff))
     end
@@ -344,7 +355,13 @@ function readDesign(pedfile::AbstractString;
     if size(design,2)<5
         error("At least 5 columns are required in ",pedfile)
     else
-        design=design[:,1:5]
+        namels = names(design)
+        if namels == ["member", "mother", "father","family","gender","generation", "ploidy"]
+            # format of peddf in polyorign v2
+            design = design[:,[1,4,2,3,7]]
+        else
+            design=design[:,1:5]
+        end        
         rename!(design,[:individual,:population,:mother,:father,:ploidy])
         for i=1:4
             design[!,i]=string.(strip.(string.(design[!,i])))
@@ -353,6 +370,7 @@ function readDesign(pedfile::AbstractString;
     allunique(design[!,1]) || @error("individual IDs are not unique")
     isparent = [design[i,3] == "0" && design[i,4] == "0" for i=1:size(design,1)]
     isparent .+= [design[i,3] == "NA" && design[i,4] == "NA" for i=1:size(design,1)]
+    isparent .+= [design[i,3] == "notapplicable" && design[i,4] == "notapplicable" for i=1:size(design,1)]
     isoff  = .!isparent
     d=setdiff(design[isoff,:mother],design[!,:individual])
     isempty(d) || @error("offspring have unknown mothers  ", d)

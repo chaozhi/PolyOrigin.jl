@@ -339,7 +339,7 @@ function polyOrigin!(polygeno::PolyGeno;
             setAbsPhase!(refhapfile,polygeno,workdir=workdir,io=io,verbose=verbose)
         catch err
             msg = string("warning: could not set absolute parental phases,", err)
-            verbose && @warn msg
+                     verbose && @warn msg
             printconsole(io,false,msg)
         end
     end

@@ -9,12 +9,33 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     isfile(refhapfile2) || @error(string(refhapfile," does not exist in workdir = ",workdir))
     ploidy = parentinfo[!,:ploidy]
     refhap=CSV.read(refhapfile2,DataFrame; delim=delim,comment=comment,missingstring=missingstring)
-    ncol = 3+size(parentinfo,1)
+    # genofile resulting polyoriginsim, genofile for polyorgin v2
+    namels = names(refhap)    
+    delcolls = ["physchrom", "physposbp", "parentformat","offspringformat",
+        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion"]
+    dells = [findfirst(==(i),namels) for i in delcolls]    
+    deleteat!(dells,isnothing.(dells))
+    isV2format = !isempty(delcolls)
+    if !isempty(dells)
+        colls = setdiff(1:size(refhap,2),dells)
+        refhap = refhap[!,colls]
+    end
+    # 
+    nf = size(parentinfo,1)
+    ncol = 3+nf
     if size(refhap,2) >= ncol
         refhap = refhap[:,1:ncol]
     else
         error(string("#columns = ", size(refhap,2) , ", smaller than ", ncol, " = 3+#parent"))
-
+    end
+    if isV2format        
+        refgeno = Matrix(refhap[!,4:end])        
+        alleleset = sort(unique(reduce(vcat,split.(unique(refgeno),"|"))))
+        if alleleset == ["0","1"]
+            refhap[!,4:end] .= replace.(refgeno,"0"=>"1","1"=>"2") # different allele coding
+        else
+            @error string("unexpected alleleset=",alleleset, " for vcf formatted geno")
+        end
     end
     for i=union(1:2,4:size(refhap,2))
         refhap[!,i] = string.(strip.(string.(refhap[!,i])))

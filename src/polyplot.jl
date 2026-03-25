@@ -886,7 +886,7 @@ function cal_doublereduction!(polyancestry::PolyAncestry; minprob::Real= 0.5)
         end
     end
     if isempty(offspringset)
-        @warn string("all offspring are produced from selfing. Calculation of dobule reduction applies only to non-selfing offspring")
+        @info string("NO offspring left after excluding diploids and selfing. ")
         return nothing
     end    
     parentinfo = polyancestry.parentinfo
