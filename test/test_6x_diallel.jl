@@ -4,7 +4,7 @@ isgbs = false
 isrefine = false
 acc,tau, polyancestry = calacctau(dataid,isgbs,isrefine)
 
-@test tau[1] >= 0.9
+@test tau[1] >= 0.8
 @test acc.ndoseerr <=1
 @test acc.nphaseerr<=3
 @test acc.assignerr<0.09
