@@ -67,8 +67,8 @@ function polyOrigin(genofile::AbstractString,pedfile::AbstractString;
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=true,
-    isparalleloffspring::Bool=true, 
+    isparallel::Union{Nothing, Bool}=nothing,
+    isparalleloffspring::Union{Nothing, Bool}=nothing, 
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,
@@ -191,9 +191,9 @@ to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
 
-`isparallel::Bool=true`: if true, multicore computing over chromosomes.
+`isparallel::Union{Nothing, Bool}=nothing`: if true, multicore computing over chromosomes.
 
-`isparalleloffspring::Bool=true`: if true, multicore computing over offspring in ancestral inference.
+`isparalleloffspring::Union{Nothing, Bool}=nothing`: if true, multicore computing over offspring in ancestral inference.
 
 `delmarker::Bool=true`: if true, delete markers during parental phasing.
 
@@ -276,7 +276,7 @@ function polyOrigin!(polygeno::PolyGeno;
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     isparallel::Bool=true,
-    isparalleloffspring::Bool=true,
+    isparalleloffspring::Union{Nothing, Bool}=nothing,
     delmarker::Bool=true,
     delsiglevel::Real=0.05,
     maxstuck::Integer=5,maxiter::Integer=30,
@@ -356,9 +356,37 @@ function polyOrigin!(polygeno::PolyGeno;
     polyancestry
 end
 
-function reset_parallel(isparallel,isparalleloffspring, isinfererror,nchr; io, verbose)
-    isparallel = isparallel && nprocs()>1 && nchr > 1
-    isparalleloffspring = isparalleloffspring && nprocs()>1   
+function reset_parallel(isparallel0,isparalleloffspring0, isinfererror,nchr; io, verbose)
+    if isnothing(isparallel0)
+        if !isnothing(isparalleloffspring0) && isparalleloffspring0
+            isparallel = false
+        else
+            isparallel = nprocs()>1 && nchr > 1                  
+        end
+        printconsole(io, verbose, string("reset isparallel=",isparallel))       
+    else
+        if isparallel0 && nprocs() == 1
+            isparallel = false
+            msg = string("reset isparallel=",isparallel)
+            @warn msg
+            printconsole(io, false, "Warn: "*msg)       
+        else            
+            isparallel = isparallel0
+        end
+    end
+    if isnothing(isparalleloffspring0)
+        isparalleloffspring = !isparallel && nprocs()>1   
+        printconsole(io, verbose, string("reset isparalleloffspring=",isparalleloffspring))    
+    else
+        if isparalleloffspring0 && nprocs() == 1
+            isparalleloffspring = false
+            msg = string("reset isparallel=",isparalleloffspring)
+            @warn msg
+            printconsole(io, false, "Warn: "*msg)       
+        else            
+            isparalleloffspring = isparalleloffspring0  
+        end
+    end
     if isparalleloffspring && isparallel
         if isinfererror 
             isparalleloffspring = false # error estimation cannot be paralleled           
@@ -370,8 +398,9 @@ function reset_parallel(isparallel,isparalleloffspring, isinfererror,nchr; io, v
             isparallel = false       
             msg = string("reset isparallel=",isparallel, " since isparalleloffspring=",isparalleloffspring,
                 " and isinfererror=", isinfererror)      
-            printconsole(io, verbose, msg)                   
-        end
+            printconsole(io, false, "WARN: "*msg)       
+            @warn msg
+        end    
     end
     isparallel,isparalleloffspring
 end
