@@ -873,20 +873,24 @@ function cal_doublereduction!(polyancestry::PolyAncestry; minprob::Real= 0.5)
     end
     offspringset = findall(.!isoutlier)    
     statespace = polyancestry.statespace 
+    nexcl_self = 0
+    nexcl_diploid = 0
     for (popid, val) in statespace
         offls = findall(offinfo[!,:population] .== popid)
         if length(val["parentindex"] )==1            
             setdiff!(offspringset, offls)
-            @info string("calculation of double reduction excluded ", length(offls)," self-fertilized offspring in subpop = ",popid)
+            nexcl_self += length(offls)
+            # @info string("calculation of double reduction excluded ", length(offls)," self-fertilized offspring in subpop = ",popid)
         else
             if offinfo[offls[1], :ploidy] == 2
                 setdiff!(offspringset, offls)
-                @info string("calculation of double reduction excluded ", length(offls)," diploid offspring in subpop = ",popid)
+                nexcl_diploid += length(offls)
+                # @info string("calculation of double reduction excluded ", length(offls)," diploid offspring in subpop = ",popid)
             end
         end
     end
     if isempty(offspringset)
-        @info string("NO offspring left after excluding diploids and selfing. ")
+        @info string("no offspring left after excluding ", nexcl_diploid, " diploids and ", nexcl_self, " selfing. ")
         return nothing
     end    
     parentinfo = polyancestry.parentinfo

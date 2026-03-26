@@ -196,12 +196,11 @@ function readPolyGeno(inpugenofile::AbstractString, inpupedfile::AbstractString;
     # genofile resulting polyoriginsim, genofile for polyorgin v2
     namels = names(geno)    
     delcolls = ["physchrom", "physposbp", "parentformat","offspringformat",
-        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion"]
-    dells = [findfirst(==(i),namels) for i in delcolls]
-    deleteat!(dells,isnothing.(dells))
-    if !isempty(dells)
-        colls = setdiff(1:size(geno,2),dells)
-        geno = geno[!,colls]
+        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion", "doublereduction"]    
+    intersect!(delcolls, namels)
+    isV2format = !isempty(delcolls)
+    if isV2format        
+        geno = geno[!,setdiff(namels,delcolls)]
     end
     # 
     if size(geno,2) != 3+nparent+noff

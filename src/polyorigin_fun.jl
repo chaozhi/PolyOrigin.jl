@@ -275,7 +275,7 @@ function polyOrigin!(polygeno::PolyGeno;
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=true,
+    isparallel::Union{Nothing, Bool}=nothing,
     isparalleloffspring::Union{Nothing, Bool}=nothing,
     delmarker::Bool=true,
     delsiglevel::Real=0.05,

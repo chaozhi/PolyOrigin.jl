@@ -1,6 +1,6 @@
 
 cd(@__DIR__)
-dataid = "4x_diallel"
+dataid = "2x_diallel"
 isgbs = false
 isrefine = true
 acc,tau, polyancestry = calacctau(dataid,isgbs,isrefine)

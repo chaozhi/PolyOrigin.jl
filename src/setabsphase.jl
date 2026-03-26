@@ -12,13 +12,11 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     # genofile resulting polyoriginsim, genofile for polyorgin v2
     namels = names(refhap)    
     delcolls = ["physchrom", "physposbp", "parentformat","offspringformat",
-        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion"]
-    dells = [findfirst(==(i),namels) for i in delcolls]    
-    deleteat!(dells,isnothing.(dells))
+        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion","doublereduction"]    
+    intersect!(delcolls, namels)
     isV2format = !isempty(delcolls)
-    if !isempty(dells)
-        colls = setdiff(1:size(refhap,2),dells)
-        refhap = refhap[!,colls]
+    if isV2format        
+        refhap = refhap[!,setdiff(namels,delcolls)]
     end
     # 
     nf = size(parentinfo,1)
@@ -30,7 +28,7 @@ function readparenthaplo(refhapfile::AbstractString, parentinfo::DataFrame,
     end
     if isV2format        
         refgeno = Matrix(refhap[!,4:end])        
-        alleleset = sort(unique(reduce(vcat,split.(unique(refgeno),"|"))))
+        alleleset = sort(unique(strip.(reduce(vcat,split.(unique(refgeno),"|")))))
         if alleleset == ["0","1"]
             refhap[!,4:end] .= replace.(refgeno,"0"=>"1","1"=>"2") # different allele coding
         else
