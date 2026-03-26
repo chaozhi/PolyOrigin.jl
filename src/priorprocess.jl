@@ -293,7 +293,7 @@ end
 function gettranprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector, t::Integer)
     dict= Dict([begin
             priorls=[priorprocess[i] for i=split(strkey,"|")]
-            tranprob = [i.tranprobseq[t] for i=priorls]
+            tranprob = [i.tranprobseq[t] for i=priorls]            
             strkey => kron(tranprob...)
         end for strkey = unique(bvkeyls)])
     [get(dict,i, nothing) for i=bvkeyls]
@@ -346,7 +346,7 @@ function setmarkerincl!(pri::MarkovPrior,markerincl::BitVector)
     if length(pri.markerincl) != length(markerincl)
         @error("markerincl has wrong #markers: ",length(markerincl))
     end
-    deltd = pri.markerdeltd
+    deltd = copy(pri.markerdeltd)
     pre=0
     for i=1:length(markerincl)-1
         if markerincl[i]
@@ -361,11 +361,13 @@ function setmarkerincl!(pri::MarkovPrior,markerincl::BitVector)
     tran .= missing
     ii = findall(markerincl)[1:end-1]
     tran[ii]=[getgametetran(i,pri.nvalent) for i=deltd[ii]]
-    pri.tranprobseq = tran
-    pri.markerincl = markerincl
-    pri.markerdeltd = deltd
+    pri.tranprobseq .= tran
+    pri.markerincl .= markerincl
+    pri.markerdeltd .= deltd
     pri
 end
+
+
 
 function setsegrev!(priorprocess::AbstractDict,tt::AbstractVector)
     tt2=tt[1:end-1]
