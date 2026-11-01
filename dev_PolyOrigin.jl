@@ -8,6 +8,5 @@ catch err
     @warn err
 end
 Pkg.develop(path = abspath(@__DIR__))
+# @time Pkg.build("PolyOrigin")
 Pkg.activate()
-
-

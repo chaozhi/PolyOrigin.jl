@@ -1,115 +1,81 @@
 function connected_polygenos(polygeno::PolyGeno)
-    des = polygeno.designinfo
-    ccparent = connected_parents(des)
+    polyped = polygeno.polyped
+    ccparent = connected_parents(polyped)
     length(ccparent) ==1 && return [polygeno]
-    ccpop = [findall(sum(Matrix(des[:,i .+ 1]),dims=2)[:,1] .> 0) for i= ccparent]
-    ccpopid=[des[!,:population][i] for i=ccpop]
-    offpop=polygeno.offspringinfo[!,:population]
+    ccpop = [findall(sum(Matrix(polyped.designinfo[:,i .+ 1]),dims=2)[:,1] .> 0) for i= ccparent]
+    ccpopid=[polyped.designinfo[!,:family][i] for i=ccpop]
+    offpop=polyped.offspringinfo[!,:family]
     ccoff=[findall([i in j for i=offpop]) for j=ccpopid]
     [begin
         ppgeno = [i[:,ccparent[c]] for i=polygeno.parentgeno]
         offgeno = [i[:,ccoff[c]] for i=polygeno.offspringgeno]
-        ppinfo = polygeno.parentinfo[ccparent[c],:]
-        offinfo =  polygeno.offspringinfo[ccoff[c],:]
+        ppinfo = polyped.parentinfo[ccparent[c],:]
+        offinfo =  polyped.offspringinfo[ccoff[c],:]
         cols = ccparent[c] .+ 1
         pushfirst!(cols,1)
-        desinfo = polygeno.designinfo[ccpop[c],cols]
-        PolyGeno(polygeno.markermap,ppgeno,offgeno,ppinfo,offinfo,desinfo,
-            polygeno.delmarker,polygeno.correction)
-    end for c=1:length(ccparent)]
+        desinfo = polyped.designinfo[ccpop[c],cols]
+        ped = getsubped(polyped.ped, offinfo[:,:individual])        
+        newpolyped = PolyPed(ped, desinfo, ppinfo,offinfo)
+        PolyGeno(newpolyped, polygeno.markermap, ppgeno,offgeno,polygeno.misc)
+    end for c = eachindex(ccparent)]
 end
 
-function connected_parents(designinfo::DataFrame)
-    np = size(designinfo,2)-1
+function connected_polypeds(polyped::PolyPed)    
+    ccparent = connected_parents(polyped)
+    length(ccparent) ==1 && return [polygeno]
+    ccpop = [findall(sum(Matrix(polyped.designinfo[:,i .+ 1]),dims=2)[:,1] .> 0) for i= ccparent]
+    ccpopid=[polyped.designinfo[!,:family][i] for i=ccpop]
+    offpop=polyped.offspringinfo[!,:family]
+    ccoff=[findall([i in j for i=offpop]) for j=ccpopid]
+    [begin        
+        ppinfo = polyped.parentinfo[ccparent[c],:]
+        offinfo =  polyped.offspringinfo[ccoff[c],:]
+        cols = ccparent[c] .+ 1
+        pushfirst!(cols,1)
+        desinfo = polyped.designinfo[ccpop[c],cols]
+        ped = getsubped(polyped.ped, offinfo[:,:individual])        
+        PolyPed(ped, desinfo, ppinfo,offinfo)        
+    end for c = eachindex(ccparent)]
+end
+
+
+function connected_parents(polyped::PolyPed)
+    parent2off = get_parent2progeny(polyped)
+    pls = polyped.parentinfo[!,:individual]
+    np = length(pls)
     adj = zeros(Int, np,np)
-    for i=1:size(designinfo,1)
-        pp = findall(Vector(designinfo[i,2:end]) .> 0)
-        if length(pp)==2
-            adj[pp[1],pp[2]] =1
-        end
+    for i=1:np
+        offls = parent2off[pls[i]]
+        for j in 1:np
+            p = pls[j]
+            if in(p, offls) || !isempty(intersect(offls, parent2off[p]))
+                adj[i,j] = 1
+            end
+        end    
     end
     adj=sign.(adj + adj')
     g = SimpleGraph(adj)
-    cc = connected_components(g)
+    connected_components(g)
 end
 
-
-function printconsole(io::Union{Nothing,IO},verbose::Bool,msg::AbstractString)
-    verbose && @info(msg)
-    if !isnothing(io)
-        write(io,string(msg,"\n"))
-        flush(io)
+# same as get_parent_2_immediateoff(polyped)
+function get_parent2progeny(polyped::PolyPed)    
+    priorspace = get_priorstatespace(polyped,22)
+    pls = polyped.parentinfo[!,:individual]
+    parent2off = Dict([i=>[] for i in pls])
+    for (key, val) in priorspace
+        offls = vcat(val["offspring"], val["midparent"])
+        pp = val["parent"]
+        for p in pp
+            union!(parent2off[p], offls)
+        end    
     end
+    parent2off
 end
 
 
 """
-    polyPhase(genofile,pedfile, delimchar=',', missingstring="NA",
-        commentstring="#", keyargs...)
-
-performs parental phasing and return phasedgeno::PolyGeno
-with phasedgeno.parentgeno being phased.
-
-# Positional arguments
-
-`genofile::AbstractString`: filename for genotypic data file.
-
-`pedfile::AbstractString`:  filename for population pedigree.
-
-see [`readPolyGeno`](@ref) for the requirements of `genofile` and `pedfile`.
-
-# Keyword arguments
-
-`delimchar::AbstractChar=','`:  text delimiter.
-
-`missingstring::AbstractString="NA"`: string code for missing value.
-
-`commentstring::AbstractString="#"`: rows that begins with commentstring will be ignored.
-
-see keyargs in polyPhase!(polygeno::PolyGeno, keyargs...)
-
-"""
-function polyPhase(genofile::AbstractString,pedfile::AbstractString;
-    delimchar::AbstractChar=',', missingstring::AbstractString="NA",
-    commentstring::AbstractString="#",
-    doseerr::Real=0.01,seqerr::Real=0.001,
-    chrpairing_phase::Integer=22,
-    byparent::Union{Nothing,Bool}=nothing,
-    byneighbor::Union{Nothing,Bool}=nothing,
-    chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=true,
-    delmarker::Bool=true,
-    delsiglevel::Real=0.05,
-    maxstuck::Integer=5,maxiter::Integer=30,
-    minrun::Integer=3,maxrun::Integer=10,
-    refhapfile::Union{Nothing,AbstractString} = nothing,
-    outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
-    workdir::AbstractString = pwd(),
-    verbose::Bool=true)
-    polygeno = readPolyGeno(genofile,pedfile,
-        delimchar=delimchar,
-        missingstring=missingstring,
-        commentstring=commentstring,
-        workdir=workdir,verbose=false)
-    polyPhase!(polygeno, doseerr=doseerr,seqerr=seqerr,
-        chrpairing_phase=chrpairing_phase,
-        chrsubset=chrsubset,
-        snpsubset=snpsubset,
-        isparallel=isparallel,
-        delmarker=delmarker,
-        delsiglevel=delsiglevel,
-        maxstuck=maxstuck,maxiter=maxiter,minrun=minrun,
-        maxrun=maxrun,byparent=byparent,byneighbor=byneighbor,
-        refhapfile=refhapfile,
-        missingstring=missingstring,
-        outstem=outstem,
-        logfile=logfile,workdir=workdir,verbose=verbose)
-end
-
-"""
-    polyPhase!(polygeno::PolyGeno, keyargs...)
+    polyphase!(polygeno::PolyGeno, keyargs...)
 
 performs parental phasing and return phasedgeno::PolyGeno
 with  phasedgeno.parentgeno and polygeno.parentgeno being phased .
@@ -120,11 +86,18 @@ with  phasedgeno.parentgeno and polygeno.parentgeno being phased .
 
 # Keyword arguments
 
-`doseerr::Real=0.01`: genotypic error probability.
+`doseerror::ErrorSetting=ErrorSetting(name="doseerror")`: setting for the inference of dosserror. 
+The doseerror.init is used before the inference. 
 
-`seqerror::Real=0.001`: base sequencing error probability for GBS data.
+`baseerror::ErrorSetting=ErrorSetting(name="baseerror")`: setting for the inference of baseerror. 
+The baseerror.init is used before the inference. 
 
-`chrpairing_phase::Integer=22`: chromosome pairing in parental phasing, with 22 being only
+`allelicbias::ErrorSetting=ErrorSetting(name="allelicbias")`: setting for the inference of allelicbias. 
+The allelicbias.init is used before the inference. 
+
+`overdispersion::ErrorSetting=ErrorSetting(name="overdispersion")`: setting for the inference of overdispersion.
+
+`chrpairing_phase::Union{Nothing,Integer}=nothing`: chromosome pairing in parental phasing, with 22 being only
 bivalent formations and 44 being bi- and quadri-valent formations.
 
 `chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of chromosomes
@@ -138,25 +111,20 @@ within the chromosome are deleted.
 
 `isparallel::Bool=true`: if true, multicore computing over chromosomes.
 
-`delmarker::Bool=true`: if true, delete markers during parental phasing.
+`isdelvuong::Bool=false`: if true, delete markers during parental phasing.
 
-"delsiglevel::Real=0.05": significance level for deleting markers.
+"delsiglevel::Real=0.01": significance level for deleting markers.
 
-`maxstuck::Integer=5`: the max number of consecutive iterations that are rejected
+`maxstuck::Integer=3`: the max number of consecutive iterations that are rejected
 in a phasing run.
 
-`maxiter::Integer=30`: the max number of iterations in a phasing run."
+`maxiter::Integer=50`: the max number of iterations in a phasing run."
 
 `minrun::Integer=3`: if the min number of phasing runs that are at the same local maximimum or
 have the same parental phases reaches minrun, phasing algorithm will stop before reaching the maxrun.
 
-`maxrun::Integer=10`: the max number of phasing runs.
-
-`byparent::Union{Nothing,Bool}=nothing`: if true, update parental phases
- parent by parent; if false, update parental phases one subpopulation by subpopulation.
- The nothing denotes that it is true if a connected component is a simple F1 cross,
-and false otherwise.
-
+`maxrun::Union{Nothing,Integer}=minrun`: the max number of phasing runs.
+ 
 `byneighbor::Union{Nothing,Bool}=nothing`: if ture, udpate the combination of bivalent
 or multivalents in parents by their neighbors; if false, consider all the possible combinations.
 The nothing denotes thtat it is true if max ploidy>=6, and false otherwise.
@@ -170,7 +138,7 @@ except that parental genotypes are phased and offspring genotypes are ignored if
 `outstem::Union{Nothing,AbstractString}="outstem"`: stem of output filenames.
 If nothing, no output files.
 
-`logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log"))`:
+`logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log"))`:
 log file or IO for writing log. If nothing, no log file.
 
 `workdir::AbstractString = pwd()`: directory for reading and writing files.
@@ -178,126 +146,229 @@ log file or IO for writing log. If nothing, no log file.
 `verbose::Bool=true`: if true, print messages on console.
 
 """
-function polyPhase!(polygeno::PolyGeno;
-    doseerr::Real=0.01,seqerr::Real=0.001,
-    chrpairing_phase::Integer=22,
-    byparent::Union{Nothing,Bool}=nothing,
-    byneighbor::Union{Nothing,Bool}=nothing,
+function polyphase!(polygeno::PolyGeno;    
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=true,
-    delmarker::Bool=true,
-    delsiglevel::Real=0.05,
-    maxstuck::Integer=5,maxiter::Integer=30,
-    minrun::Integer=3,maxrun::Integer=10,
+    chrpairing_phase::Union{Nothing,Integer}=nothing,    
+    byparent::Union{Nothing,Bool}=nothing,            
+    byneighbor::Union{Nothing,Bool}=nothing,     
+    bindis::Real=1e-3,     
+    iscorrectparent::Union{Nothing,Bool}=nothing,     
+    isrefineerror::Union{Nothing,Bool}=nothing,    
+    isparentdoseerror::Union{Nothing,Bool}=nothing, 
+    phaseerror_midparent::Union{Nothing,Real} = 0.01, 
+    tukeyfence::Union{Nothing,Real}=nothing, 
+    doseerror::ErrorSetting=ErrorSetting(name="doseerror"),     
+    allelicbias::ErrorSetting=ErrorSetting(name="allelicbias"), 
+    overdispersion::ErrorSetting=ErrorSetting(name="overdispersion"), 
+    baseerror::ErrorSetting=ErrorSetting(name="baseerror"),         
+    isgreedy::Bool=false, 
+    ismarkerspecific::Union{Nothing,Bool}=nothing, 
+    isdelvuong::Bool=false, 
+    delsiglevel::Real=0.01,     
+    maxstuck::Integer=3,
+    maxiter::Integer=50,
+    minrun::Integer=3,
+    maxrun::Union{Nothing,Integer}=minrun,
+    runblocksize::Union{Nothing,Integer}=minrun, 
     refhapfile::Union{Nothing,AbstractString} = nothing,
     missingstring::AbstractString="NA",
+    isparallel::Bool=true,
+    isplot::Bool=true, 
     outstem::Union{Nothing,AbstractString}="outstem",
-    logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
+    outext::AbstractString = ".vcf.gz", 
+    logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
+    tempdirectory::AbstractString = tempdir(),
     verbose::Bool=true)
-    starttime = time()
-    if logfile === nothing
-        io=nothing
-    else
-        if typeof(logfile) <: AbstractString
-            io=open(getabsfile(workdir,logfile), "w+")
-            printpkgst(io,verbose,"PolyOrigin")
-        else
-            io=logfile
-        end
+    starttime = time()    
+    io = set_logfile_begin(logfile, workdir, "polyphase!"; verbose)    
+    minrun = max(1, minrun)    
+    if isparallel && nworkers()  == 1
+        isparallel = false
+        printconsole(io, verbose, string("reset isparallel = true because of only one worker. ")) 
     end
-    printconsole(io,verbose,string("polyPhase!, logfile=", logfile, ", ", Dates.now()))
-    minrun > maxrun && (minrun = maxrun)
     msg = string("list of option values: \n",
-        "doseerr = ", doseerr, "\n",
-        "seqerr = ",seqerr,"\n",
-        "chrpairing_phase = ",chrpairing_phase, "\n",
-        "byparent = ", byparent,"\n",
-        "byneighbor = ", isnothing(byneighbor) ? "true for max(ploidy) >= 6" : byneighbor,"\n",
         "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",
-        "isparallel = ", isparallel, "\n",
-        "delmarker = ", delmarker, "\n",
+        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",        
+        "chrpairing_phase = ",chrpairing_phase, "\n",        
+        "byparent = ", byparent,"\n",                            
+        "byneighbor = ", byneighbor,"\n",                        
+        "bindis = ", bindis,"cM\n",                                
+        "isparentdoseerror = ", isparentdoseerror, "\n",
+        "iscorrectparent = ", iscorrectparent, "\n", 
+        "isrefineerror = ", isrefineerror, "\n",                
+        "tukeyfence = ",tukeyfence,"\n",                
+        "doseerror = ", doseerror, "\n",
+        "baseerror = ",baseerror,"\n",        
+        "allelicbias = ",allelicbias,"\n",        
+        "overdispersion = ",overdispersion,"\n",                
+        "isgreedy = ",isgreedy,"\n",        
+        "ismarkerspecific = ",ismarkerspecific,"\n",        
+        "isdelvuong = ", isdelvuong, "\n",
         "delsiglevel = ", delsiglevel, "\n",
         "maxstuck = ",maxstuck, "\n",
         "maxiter = ",maxiter,"\n",
         "minrun = ",minrun, "\n",
         "maxrun = ",maxrun,"\n",
+        "runblocksize = ",runblocksize,"\n",
         "refhapfile = ",refhapfile,"\n",
         "missingstring = ",missingstring,"\n",
-        "outstem = ",isnothing(outstem) ? "no output files" : outstem,"\n",
+        "isparallel = ", isparallel, isparallel && nworkers() > 0  ?  string("(nworkers=", nworkers(), ")") : "", "\n",
+        "isplot = ",isplot,"\n",
+        "outstem = ",isnothing(outstem) ? "no output files" : outstem,"\n",        
+        "outext = ",outext,"\n",
         "logfile = ",io,"\n",
         "workdir = ",workdir,"\n",
+        "tempdirectory = ",tempdirectory,"\n",
         "verbose = ",verbose)
     printconsole(io,verbose,msg)
-    msg = string("data: #pop=", size(polygeno.designinfo,1),
-        ", #parent=",size(polygeno.parentinfo,1),
-        ", #offspring=",size(polygeno.offspringinfo,1),
-        ", #chr=",length(polygeno.markermap),
-        ", #marker=",sum(size.(polygeno.markermap,1)))
-    printconsole(io,verbose,msg)
-    if !isnothing(chrsubset)
-        verbose && @info string("chrsubset=",chrsubset)
+    info_polygeno(polygeno; io, verbose)    
+    isnothing(chrsubset) || printconsole(io, verbose, string("chrsubset=",chrsubset))    
+    isnothing(snpsubset) || printconsole(io, verbose, string("snpsubset=",snpsubset))    
+    getsubpolygeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)    
+    if isnothing(isrefineerror)
+        isrefineerror = true
+        printconsole(io, verbose, string("reset isrefineerror = ", isrefineerror))
     end
-    if !isnothing(snpsubset)
-        verbose && @info string("snpsubset=",snpsubset)
-    end
-    getsubPolyGeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
-    rawDoseCall!(polygeno,seqerr=seqerr)
-    # if kindofgeno(polygeno.parentgeno) == "probability" || kindofgeno(polygeno.offspringgeno) == "probability"
-    #     outfile = string(outstem,"_rawdoseprob.csv")
-    #     outputfile2 = getabsfile(workdir,outfile)
-    #     savegenodata(outputfile2,polygeno)
-    #     msg = string("genofile with raw dose probability: ", outfile)
-    #     printconsole(io,verbose,msg)
-    # end
-    res=[]
-    polygenols=connected_polygenos(polygeno)
-    for subpolygeno = polygenols
-        pp = subpolygeno.parentinfo[!,:individual]
-        pp = [i<length(pp) ? string(pp[i],", ") : pp[i] for i=1:length(pp)]
-        msg = string("phasing connected parents: ", string(pp...))
-        printconsole(io,verbose,msg)
-        if isnothing(byparent)
-            # byparent2 = size(subpolygeno.designinfo,1) > size(subpolygeno.parentinfo,1)
-            b1 = max(subpolygeno.parentinfo[!,:ploidy]...) <= 4
-            b2 = size(subpolygeno.parentinfo,2) ==2
-            b3 = size(subpolygeno.designinfo,1) ==1
-            byparent2 = !( b1 && b2 && b3)
-            printconsole(io,verbose,string("set byparent=",byparent2))
+    if isnothing(isparentdoseerror)
+        maxploidy = maximum(polygeno.polyped.parentinfo[!,:ploidy])
+        if maxploidy >= 6 
+            isparentdoseerror = false
         else
-            byparent2 = byparent
+            isparentdoseerror = true
+            # if occursin("AD", join(reduce(vcat,[unique(i[!,:parentformat]) for i in polygeno.markermap])))
+            #     isparentdoseerror = false
+            # else
+            #     isparentdoseerror = true
+            # end
         end
-        if isnothing(byneighbor)
-            # byparent2 = size(subpolygeno.designinfo,1) > size(subpolygeno.parentinfo,1)
-            byneighbor2 = max(subpolygeno.parentinfo[!,:ploidy]...) >=6
-            # printconsole(io,verbose,string("set byneighbor=",byneighbor2))
-        else
-            byneighbor2 = byneighbor
-        end
-        phases =parentalphasing_allchr(subpolygeno,doseerr,chrpairing_phase,
-            byparent2,byneighbor2,delmarker,delsiglevel,
-            maxstuck,maxiter,minrun,maxrun,isparallel,io,verbose)
-        push!(res,phases)
+        printconsole(io, verbose, string("reset isparentdoseerror = ", isparentdoseerror))
     end
-    phasedict = merge(res...)
-    hh = [phasedict[i] for i=polygeno.parentinfo[!,:individual]]
-    nsnp = size.(first(hh),1)
-    nchr = length(first(hh))
-    hh2=[[h[chr][i,:]' for h=hh, i=1:nsnp[chr]]' for chr=1:nchr]
-    polygeno.parentgeno = hh2
-    isdel=[[all(ismissing.(unique(vcat(i...)))) for i=eachrow(j)] for j=hh2]
-    delmarker = setparentphase!(polygeno,isdel)
-    if size(delmarker,1)>=1
-        msg = string("delete ", size(delmarker,1)," markers: ",
-            join(sort(string.(delmarker[!,:marker])),", "))
+    if isnothing(iscorrectparent) 
+        iscorrectparent = true
+        printconsole(io, verbose, string("reset iscorrectparent = ", iscorrectparent))
+    end
+    if isnothing(byparent)            
+        avgploidy = mean(polygeno.polyped.parentinfo[!,:ploidy])
+        byparent = avgploidy > 4 # byparent =false would be too slow for high ploidy 
+        printconsole(io,verbose,string("reset byparent=",byparent))   
+    end
+    if isnothing(byneighbor)            
+        avgploidy = mean(polygeno.polyped.parentinfo[!,:ploidy])
+        byneighbor = avgploidy > 4 
+        printconsole(io,verbose,string("reset byneighbor=",byneighbor))         
+    end    
+    parentformatset = get_genoformat(polygeno; isparentformat=true)
+    if parentformatset == ["GT_phased"] 
+        minrun = maxrun = 1
+        printconsole(io,verbose,string("reset minrun=",minrun,", maxrun=",maxrun))         
+    end
+    if isnothing(maxrun)
+        isgbsad = any([occursin("AD", join(reduce(vcat,[unique(i[!,col]) for i in polygeno.markermap]))) 
+            for col in ["parentformat", "offspringformat"]])
+        maxrun = isgbsad ? minrun : 2*minrun
+        printconsole(io,verbose,string("reset maxrun=",maxrun))         
+    end
+    if isnothing(runblocksize)
+        nchr = length(polygeno.markermap)
+        runblocksize = nworkers() >= nchr ? minrun : 1
+        printconsole(io,verbose,string("reset runblocksize=",runblocksize))         
+    end
+    if isnothing(chrpairing_phase)            
+        avgploidy = mean(polygeno.polyped.parentinfo[!,:ploidy])
+        if avgploidy > 4 
+            chrpairing_phase = 22
+        elseif avgploidy > 2
+            chrpairing_phase = 44
+        else
+            chrpairing_phase = 22
+        end
+        if avgploidy > 2
+            printconsole(io,verbose,string("reset chrpairing_phase=",chrpairing_phase))   
+        end
+    end
+    if isnothing(tukeyfence)        
+        popsize = size(polygeno.polyped.offspringinfo,1)
+        tukeyfence = popsize >= 50 ? 3 : Inf
+        printconsole(io, verbose, string("reset tukeyfence = ",tukeyfence))
+    end    
+
+    describe_phase_msg(io,verbose)
+    reserrorls  = []
+    phasedict = Dict()
+    polygenols = connected_polygenos(polygeno)        
+    if isplot && (!isnothing(outstem)) && length(polygenols) > 1
+        figdir = joinpath(workdir, outstem * "_plots")
+        isdir(figdir) || mkdir(figdir)
+        for sub = eachindex(polygenols)
+            subpolygeno = polygenols[sub]
+            ped2 = extract_compactped(subpolygeno.polyped.ped)
+            gdesign =  plotped(ped2)            
+            fn = joinpath(figdir,string(outstem,"_ped", sub, ".png"))
+            savefig(gdesign,fn)            
+        end
+        msg = string("save design plot in ", figdir)
         printconsole(io,verbose,msg)
     end
-    if !isnothing(refhapfile)
-        try
-            setAbsPhase!(refhapfile,polygeno,
-                workdir=workdir,io=io,verbose=verbose)
+
+    for sub = eachindex(polygenols)
+        subpolygeno = polygenols[sub]
+        pp = subpolygeno.polyped.parentinfo[!,:individual]
+        pp = [i<length(pp) ? string(pp[i],", ") : pp[i] for i=eachindex(pp)]
+        msg = string("\nphasing ", sub, " out of ", length(polygenols), 
+            " components: ", length(pp), " connected parents = ", string(pp...))
+        printconsole(io,verbose,msg)        
+        if !byparent
+            print_parent_partition(polygeno.polyped; byparent, io,verbose)                
+        end        
+        phases,resdict_err =parentalphasing_global(subpolygeno; 
+            refhapfile, chrpairing_phase, byparent, byneighbor, iscorrectparent,  bindis,  
+            isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0, 
+            doseerror, baseerror, allelicbias, overdispersion, 
+            tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel,  
+            maxstuck,maxiter,minrun,maxrun,runblocksize, 
+            isparallel, workdir, tempdirectory, io,verbose)
+        merge!(phasedict, phases)
+        push!(reserrorls, resdict_err)
+    end    
+    isrephase = length(polygenols) > 1        
+    isdells = setphase_polygeno!(polygeno, phasedict,reserrorls; isrephase);    
+    if isrephase
+        pp = polygeno.polyped.parentinfo[!,:individual]
+        msg = string("\nphasing all ", length(polygenols), 
+            " components: ", length(pp), " parents = ", join(pp,", "))
+        printconsole(io,verbose,msg)        
+        if !byparent
+            print_parent_partition(polygeno.polyped; byparent, io,verbose)                
+        end        
+        phases,resdict_err =parentalphasing_global(polygeno; 
+            refhapfile, chrpairing_phase, byparent, byneighbor, iscorrectparent, bindis, 
+            isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0.01, 
+            doseerror, baseerror, allelicbias,  overdispersion, 
+            tukeyfence, isgreedy,ismarkerspecific, isdelvuong, delsiglevel, 
+            maxstuck,maxiter,minrun=1,maxrun=1,runblocksize=1, 
+            isparallel, workdir, tempdirectory, io,verbose
+        )
+        isdells = setphase_polygeno!(polygeno, phases,[resdict_err]; isrephase=false)
+    end
+
+    # del markers
+    println()
+    nmarker = sum(size.(polygeno.markermap,1))
+    delmarkerdf = sum(sum.(isdells)) > 0  ? setparentphase!(polygeno,isdells) : DataFrame()    
+    ndel = size(delmarkerdf,1)
+    if size(delmarkerdf,1)>=1
+        msg = string("delete ", ndel," out of ", nmarker, " markers: ",
+            join(sort(string.(delmarkerdf[!,:marker])),", "))
+        printconsole(io,verbose,msg)
+    end          
+    # set absphase
+    if !isnothing(refhapfile )
+        try            
+            refparenthap = setabsphase!(refhapfile,polygeno; workdir)
+            phaseerrdf = calphaseerr(refparenthap,polygeno)
+            savephaseerr(phaseerrdf; io, verbose)
         catch err
             msg = "could not set absolute parental phases,"
             msg = string("warning: ", msg, " ", err)
@@ -305,713 +376,1174 @@ function polyPhase!(polygeno::PolyGeno;
             printconsole(io,false,msg)
         end
     end
-    if outstem !== nothing
-        outfile = string(outstem,"_parentphased.csv")
+    # save res
+    if !isnothing(outstem)
+        outfile = string(outstem,"_phased"*outext)
         savegenodata(outfile,polygeno,
             missingstring=missingstring,workdir=workdir)
         msg = string("parentphased file: ", outfile)
         printconsole(io,verbose,msg)
+        # plot errors
+        # figdir = getabsfile(workdir, outstem * "_plots")
+        # isdir(figdir) || mkdir(figdir)
+        # markermap = reduce(vcat,polygeno.markermap)
+        # figerr = plotmarkererror(markermap;tukeyfence=isnothing(tukeyfence) ? 3 : tukeyfence)
+        # if !isnothing(figerr)                
+        #     errfile = joinpath(figdir,outstem * "_polyphase_markererror.png")
+        #     try 
+        #         savefig(figerr,getabsfile(workdir,errfile))
+        #     catch err
+        #         msg = string("Could not savefig. ",err)
+        #         @warn msg
+        #         printconsole(io, verbose, "Warning: "*msg)
+        #     end
+        # end
     end
-    printconsole(io,verbose,string("End, ", Dates.now(),", time elapsed = ",
-        round(time()-starttime), " seconds by polyPhase!"))
-    if typeof(logfile) <: AbstractString
-        close(io)
-    elseif typeof(logfile) <: IO
-        flush(io)
-    end
+    tused = round(time()-starttime,digits=1)
+    set_logfile_end(logfile, io, tused,"polyphase!"; verbose)
     polygeno
+end
+
+function setphase_polygeno!(polygeno::PolyGeno,phasedict::AbstractDict,reserrorls::AbstractVector; isrephase::Bool)
+    isdells = []    
+    hh = [phasedict[i] for i=polygeno.polyped.parentinfo[!,:individual]]
+    for chr in eachindex(polygeno.markermap)    
+        inputpgeno = deepcopy(polygeno.parentgeno[chr])     
+        chrparentgeno = reduce(hcat,[i[chr] for i in hh])        
+        polygeno.parentgeno[chr] = Matrix{Any}([ismissing(j) ? j : string.(j) for j in chrparentgeno])
+        if isrephase
+            b = ismissing.(polygeno.parentgeno[chr])
+            if any(b)
+                gls = inputpgeno[b]
+                formatls = polygeno.markermap[chr][!,:parentformat]
+                formatset = unique(formatls)
+                if issubset(formatset, ["GT_unphased","GT_phased","GT"])
+                    polygeno.parentgeno[chr][b] .= [if ismissing(i) || isa(i, AbstractVector) 
+                        i
+                    elseif occursin("N",i) 
+                        missing         
+                    else
+                        ls = occursin("/",i) ? split(i, "/") : split(i, "|")
+                        allequal(ls) ? parse.(Int8, ls) : i 
+                    end for i in gls]
+                else
+                    error(string("TODO for format=",formatset))
+                end    
+            end
+            isallphased = all(isa.(polygeno.parentgeno[chr], AbstractVector))
+            polygeno.markermap[chr][!,:parentformat] .= isallphased ? "GT_phased" : "GT"
+        else
+            isdel = [any(ismissing.(i)) for i in eachrow(polygeno.parentgeno[chr])]
+            push!(isdells,isdel)
+            polygeno.markermap[chr][!,:parentformat] .= "GT_phased" 
+        end
+    end        
+    # save error inference
+    if length(reserrorls) == 0
+        resdict_err = first(reserrorls)
+    else
+        targetlsls = collect.(keys.(reserrorls))
+        allequal(targetlsls) || @error string("unequal targetls=",targetlsls)    
+        resdict_err = Dict()
+        targetls = first(targetlsls)
+        for target in targetls
+            push!(resdict_err, target => mean([i[target] for i in reserrorls]))
+        end
+    end
+    for chr in eachindex(polygeno.markermap)    
+        for target in targetls
+            polygeno.markermap[chr][!,target] .= resdict_err[target][chr] 
+        end
+    end
+    isdells
+end
+
+function print_parent_partition(polyped; byparent=false, io=nothing,verbose=true)       
+    goodparents, pindexls = get_pindexls(polyped; byparent)
+    if byparent    
+        printconsole(io,verbose,string("byparent=",byparent, ", partition = ",join(join.(pindexls,"-"),"|")))
+    else   
+        nsample = length(goodparents) == size(polyped.parentinfo,1) ? 1 : 5
+        pindexlsls = unique([last(get_pindexls(polyped; byparent)) for _ in 1:nsample])
+        msg = string("goodparents = ",goodparents)
+        for i in eachindex(pindexlsls)
+            if nsample == 1
+                msg *= string("\npartition = ",join(join.(pindexlsls[i],"-"),"|"))
+            else
+                msg *= string("\nrandpartition",i," = ",join(join.(pindexlsls[i],"-"),"|"))
+            end
+        end
+        printconsole(io,verbose,msg)
+    end
+end
+
+function describe_phase_msg(io::Union{Nothing, IO},verbose::Bool)
+    msg = "keywords in messages: \n"
+    msg *= "\t#diff     ≡ #differences between proposal and current phasing\n"
+    msg *= "\tΔlogp     ≡ increase of log posterior\n"
+    msg *= "\t#stuck    ≡ measure of parental phasing being stuck\n"    
+    msg *= "\talwaysapt ≡ if true, always accept proposal phasing\n"    
+    msg *= "\tbyblock   ≡ if true, update parental phasing by blocks\n"    
+    msg *= "\t#del_err  ≡ #deleted markers with too large error rates\n"
+    msg *= "\t#del_test ≡ #deleted markers via Vuong's test\n"
+    msg *= "\ttused     ≡ time (second) used by each sub-step in the iteration"
+    printconsole(io, verbose,msg)
 end
 
 function setparentphase!(polygeno::PolyGeno,isdel::AbstractVector)
     markermap = polygeno.markermap
     nchr = length(markermap)
-    delmarker=vcat([markermap[ch][isdel[ch],[:marker,:chromosome,:position]] for ch=1:nchr]...)
+    # delmarkerdf=vcat([markermap[ch][isdel[ch],[:marker,:linkagegroup,:poscm]] for ch=1:nchr]...)
+    delmarkerdf=vcat([markermap[ch][isdel[ch],:] for ch=1:nchr]...)
     isnondel=[.!i for i=isdel]
-    polygeno.offspringgeno = [polygeno.offspringgeno[i][isnondel[i],:]  for i=1:length(isnondel)]
-    polygeno.parentgeno = [polygeno.parentgeno[i][isnondel[i],:]  for i=1:length(isnondel)]
+    polygeno.offspringgeno = [Matrix{Any}(polygeno.offspringgeno[i][isnondel[i],:])  for i=1:length(isnondel)]
+    polygeno.parentgeno = [Matrix{Any}(polygeno.parentgeno[i][isnondel[i],:])  for i=1:length(isnondel)]
     polygeno.markermap= [markermap[i][isnondel[i],:]  for i=1:length(isnondel)]
-    polygeno.delmarker = vcat(polygeno.delmarker,delmarker)
-    delmarker
+    pushmisc!(polygeno, "deletion"=>delmarkerdf)    
+    delmarkerdf
 end
 
-function parentalphasing_allchr(polygeno::PolyGeno,
-    doseerr::Real,chrpairing_phase::Integer,
-    byparent::Bool,byneighbor::Bool,
-    delmarker::Bool,delsiglevel::Real,
-    maxstuck::Integer,maxiter::Integer,
-    minrun::Integer,maxrun::Integer,
-    isparallel::Bool,io::Union{Nothing,IO},verbose::Bool)
-    nchr=length(polygeno.markermap)
-    parenthaplo= Vector{Vector}(undef,nchr)
-    if isparallel && nprocs()>1
-        polygenols=[getsubPolyGeno(polygeno,chrsubset=[chr]) for chr=1:nchr]
-        res = pmap(x->parentalphasing_chr(x,1,doseerr,chrpairing_phase,
-            delmarker,delsiglevel,maxstuck,maxiter,
-            minrun,maxrun,byparent,byneighbor,nothing,verbose),polygenols)
-        for chr=1:nchr
-            parenthaplo[chr], iobuffer = res[chr]
-            write(io,String(take!(iobuffer)))
-            flush(io)
-            close(iobuffer)
+function parentalphasing_global(polygeno::PolyGeno;        
+    refhapfile::Union{Nothing,AbstractString},
+    chrpairing_phase::Union{Nothing,Integer},    
+    byparent::Bool, 
+    byneighbor::Bool,          
+    bindis::Real,
+    iscorrectparent::Bool, 
+    isrefineerror::Bool,    
+    isparentdoseerror::Bool,  
+    phaseerror_midparent::Union{Nothing,Real},
+    fixedphaseerror::Real,
+    doseerror::ErrorSetting,
+    baseerror::ErrorSetting,
+    allelicbias::ErrorSetting,    
+    overdispersion::ErrorSetting, 
+    tukeyfence::Union{Nothing,Real}, 
+    isgreedy::Bool,
+    ismarkerspecific::Union{Nothing,Bool}, 
+    isdelvuong::Bool,
+    delsiglevel::Real,     
+    maxstuck::Integer,
+    maxiter::Integer,    
+    minrun::Integer,
+    maxrun::Integer,
+    runblocksize::Integer,     
+    isparallel::Bool,    
+    workdir::AbstractString,
+    tempdirectory::AbstractString,     
+    io::Union{Nothing,IO}=nothing, 
+    verbose::Bool)        
+	# jldopen permissiond denied if tempdir() is in network drive    	
+	jltempdir = mktempdir(tempdirectory; prefix="jl_polyorigin_phasing_", cleanup=true)    
+	tempid = tempname(jltempdir,cleanup=false)	     
+    chridls = [i[1,:linkagegroup] for i in polygeno.markermap]      
+    nchr =  length(chridls)
+    avgsize = 	mean(length(i) for i in polygeno.offspringgeno)
+    tsleep = (isparallel && nworkers() > 1) ? avgsize*(5e-6) : 0 
+    # popsize = size(polygeno.polyped.offspringinfo,1)
+    
+    polygenofilemtx = [begin 
+        chr_tsleep = round(Int,tsleep*(chr-1))
+        chrid = replace(string(chridls[chr]),"_"=>"-")
+        filekey = string(tempid, "_chr", chr, "_", chrid, "_run",run,"_tsleep",chr_tsleep)
+        getabsfile(tempdirectory,string(filekey,".csv.gz"))
+    end for chr in 1:nchr, run in 1:maxrun]    
+    tused = @elapsed for i in 1:nchr
+        subpolygeno = getsubpolygeno(polygeno,chrsubset=[i]) 
+        savepolygeno(polygenofilemtx[i,1], subpolygeno)
+        for j in 2:maxrun        
+            cp(polygenofilemtx[i,1],polygenofilemtx[i,j]; force=true)
         end
-        @everywhere GC.gc()
+    end	        
+    msg = string("prepare for multiple phasing runs, tused=",round(tused,digits=1), " seconds")
+	printconsole(io,verbose,msg)
+    
+    if isnothing(refhapfile)
+        refparenthap = nothing
     else
-        for chr=1:nchr
-            parenthaplo[chr]=first(parentalphasing_chr(polygeno,chr,doseerr,chrpairing_phase,
-                delmarker,delsiglevel,maxstuck,maxiter,
-                minrun,maxrun,byparent,byneighbor,io,verbose))
-        end
+        refparenthap= readparenthaplo(refhapfile,polygeno.polyped.parentinfo,polygeno.markermap;  workdir)        
     end
-    parents = polygeno.parentinfo[!,:individual]
-    Dict([parents[i] => [j[i] for j=parenthaplo] for i=1:length(parents)])
-end
-
-function parentalphasing_chr(polygeno::PolyGeno, chr::Integer,
-    doseerr::Real,chrpairing_phase::Integer,
-    delmarker::Bool,delsiglevel::Real,
-    maxstuck::Integer,maxiter::Integer,
-    minrun::Integer,maxrun::Integer,
-    byparent::Bool, byneighbor::Bool,
-    io::Union{Nothing,IO},verbose::Bool)
-    starttime = time()
-    isnothing(io) && (io=IOBuffer(append=true))
-    priorspace = getpriorstatespace(polygeno,chrpairing_phase)
-    chrdose=polygeno.offspringgeno[chr]
-    nmarker = size(polygeno.markermap[chr],1)
-    chrid = polygeno.markermap[chr][1,:chromosome]
-    maxvalent = max(digits(chrpairing_phase)...)
-    priorprocess = getpriorprocess(polygeno,chr,maxvalent)
-    fhaploset, fhaploweight=calparenthaploset(polygeno,chr)
-    phaselogl = Vector{Float64}(undef,0)
-    phaseres = Vector{Vector}(undef,0)
-    batchsize=minrun
-    run=0
-    while true
-        for i = 1:batchsize
-            run+=1
-            # phaseres is a list of (fhaploindex, bvpair,logl, loglhis)
-            res = parentalphasing_local(fhaploset,fhaploweight,doseerr,chrdose,
-                priorspace,priorprocess,polygeno,delmarker,delsiglevel,
-                maxstuck,maxiter,byparent,byneighbor,chrid,run,io,verbose)
-            push!(phaseres,res)
-            push!(phaselogl,round(res[3],digits=2))
+    tempid = tempname(jltempdir,cleanup=false)	        
+    outfile = getabsfile(tempdirectory, tempid*"_polyorigin_phasing.jld2")        
+    phasedict = Dict()      
+    tused = @elapsed if isparallel       
+        chrls = collect(1:nchr)      
+        runstart = 1
+        runend = min(minrun, maxrun)
+        nwork = nworkers()
+        while true        
+            while true
+                ntask = length(chrls) * (runend - runstart + 1)
+                if ntask >= nwork                     
+                    break
+                else                    
+                    if (ntask + length(chrls) > nwork)                                                
+                        break
+                    else
+                        runend = min(maxrun, runend+1)
+                        runend == maxrun && break
+                    end
+                end
+            end     
+            (runend + 1) == maxrun && (runend += 1)                   
+            msg = string("parallel phasing: chrls=",chrls, ", run=",runstart:runend)
+            printconsole(io, verbose, msg)
+            polygenofilels = vec(permutedims(polygenofilemtx[chrls,runstart:runend])) 
+            # isrefineerror2 = runstart <= min(minrun,maxrun) ? isrefineerror : false  # no error estimation would result in smaller logp!!          
+            parentalphasing_local(polygenofilels; chrpairing_phase, byparent, byneighbor, bindis,  
+                iscorrectparent, tukeyfence,                                 
+                isrefineerror,                 
+                isparentdoseerror, phaseerror_midparent,fixedphaseerror, 
+                doseerror, baseerror, allelicbias, overdispersion,                                  
+                ismarkerspecific,isdelvuong, delsiglevel, isgreedy, 
+                maxstuck, maxiter, isparallel, outfile, io, verbose)		             
+            update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,runend; 
+                isrefineerror, 
+                refparenthap, io, minrun, maxrun,verbose)      
+            (isempty(chrls) || runend == maxrun) && break
+            runstart = runend + 1
+            runend = min(maxrun, runstart + runblocksize - 1)
         end
-        # cunt by logl # ncount = count(x->x==max(phaselogl...),phaselogl)
-        # count by phase
-        best = argmax(phaselogl)
-        haplist = [index2haplo(fhaploset,j[1]) for j=phaseres]
-        dis = [sum(last(calpermhomolog(haplist[best],est))) for est=haplist]
-        ncount = sum(dis .== 0)
-        if (ncount >= minrun) || run>=maxrun
-            msg = string("chr=",chrid,
-                # nprocs()>1 ? string(", p=",myid()) : "",
-                ", #marker=",nmarker,
-                ", done, elapsed=", round(time()-starttime), " seconds",
-                ", #mismatch(run",best," ~ runs) = ", dis)
-            printconsole(io,verbose,msg)
-            return haplist[best],io
-        end
-        batchsize= min(minrun - ncount,maxrun-run)
-    end
-end
-
-function index2haplo(fhaploset::AbstractVector,haploindex::AbstractVector)
-    [reduce(hcat,map((x,y)->ismissing(y) ? missings(length(x[1])) : x[y],
-        fhaploset[i],haploindex[i]))' for i=1:length(fhaploset)]
-end
-
-function parentalphasing_local(fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    doseerr::Real,chrdose::AbstractMatrix,
-    priorspace::AbstractDict,priorprocess::AbstractDict,polygeno::PolyGeno,
-    delmarker::Bool,delsiglevel::Real,
-    maxstuck::Integer,maxiter::Integer,byparent::Bool,byneighbor::Bool,
-    chrid::AbstractString,run::Integer,io::IO,verbose::Bool)
-    # priorprocess = deepcopy(inputpriorprocess)
-    # fhaploindex=[[rand(Categorical(i)) for i=j] for j=fhaploweight]
-    fhaploindex=[Vector{Union{Missing,Int}}([rand(Categorical(i)) for i=j]) for j=fhaploweight]
-    noff = size(polygeno.offspringinfo,1)
-    bvpair = randinitbvpair(priorspace,polygeno)
-    siblogl = repeat([-Inf],noff)
-    popidls = keys(priorspace)
-    doseerrls = [doseerr for i=1:size(chrdose,1)]
-    if byneighbor
-        updatebvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,priorspace,
-            priorprocess,polygeno,popidls)
     else
-        randbvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,priorspace,
-            priorprocess,polygeno,popidls)
-    end
-    logl = sum(siblogl)
-    loglhis =[logl]
-    nstuck = 0    
-    for it=1:maxiter        
-        startt = time()        
-        newfhaploindex,newbvpair,newsiblogl,newlogl=updatefhaplobvpair(fhaploindex,
-            bvpair,siblogl,fhaploset,fhaploweight,doseerr,chrdose,
-            priorspace,priorprocess,polygeno,byparent,byneighbor)
-        logl = loglhis[end]
-        accept = newlogl >= logl
-        if accept
-            newlogl == logl ? nstuck += (maxstuck-1) : nstuck=0
-            fhaploindex,bvpair,siblogl,logl = newfhaploindex,newbvpair,newsiblogl,newlogl
-        else
-            nstuck +=1
-            cond=all(map((x,y)->all(skipmissing(x .== y)),newfhaploindex,fhaploindex))
-            cond && (nstuck += 1)
-        end                        
-        msg = string("chr=",chrid,", run=", run,", it=", it)                         
-        if nstuck>0 && delmarker
-            doseerr=first(updatedoseerr(doseerr,bvpair,fhaploindex,fhaploset,
-                priorspace,priorprocess,chrdose,polygeno))
-            doseerrls = [doseerr for i=1:size(chrdose,1)]
-            # priorprocess is modified
-            delsnps = polymarkerdel!(fhaploindex,fhaploset,bvpair,priorspace,
-                priorprocess, chrdose, doseerrls, polygeno; delsiglevel)  
-            ndel = length(delsnps)              
-            if byneighbor
-                updatebvpair!(bvpair,siblogl,fhaploindex,fhaploset,
-                    doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
-            else
-                randbvpair!(bvpair,siblogl,fhaploindex,fhaploset,
-                    doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
+        for chr in eachindex(chridls)
+            chrls = [chr]            
+            for run in 1:maxrun
+                polygenofilels = [polygenofilemtx[chr,run]]                
+                # isrefineerror2 = run <= min(minrun,maxrun) ? isrefineerror : false                
+                parentalphasing_local(polygenofilels; chrpairing_phase, byparent, byneighbor,  bindis, 
+                    iscorrectparent, tukeyfence,                                 
+                    isrefineerror,  
+                    isparentdoseerror, phaseerror_midparent,fixedphaseerror, 
+                    doseerror, baseerror, allelicbias, overdispersion,  
+                    ismarkerspecific, isdelvuong, delsiglevel, isgreedy, 
+                    maxstuck, maxiter, isparallel=false, outfile, io, verbose)	
+                if run >= min(minrun, maxrun)
+                    update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,run; 
+                        isrefineerror, 
+                        refparenthap, io, minrun, maxrun,verbose)                      
+                    isempty(chrls) && break                   
+                end
             end
-            logl = round(sum(siblogl),digits=2)
-            msg *= string(", logl=", round(logl,digits=1),                            
-                ", stuck=", nstuck,                                 
-                ", err=", round(doseerr,digits=4),                            
-                ", tused=",round(time()-startt,digits=1),"s",
-                ", #del=", ndel)
-            ndel == 0 && (delmarker = false)               
+        end  
+    end
+    # phasedict[chr]: phaplo, bvpair, logl, logprior_error,logl_parentdata, ndel, targetls, doseerror, baseerror, allelicbias, overdispersion,maxlogp                
+    # error inference
+    targetindex = 7
+    targetls_allchr = [phasedict[chr][targetindex] for chr in 1:nchr]    
+    allequal(targetls_allchr) || @error string("unequal targetls = ",targetls_allchr)
+    targetls = first(targetls_allchr)
+    doseerror_allchr = [phasedict[chr][targetindex+1] for chr in 1:nchr]    
+    baseerror_allchr = [phasedict[chr][targetindex+2] for chr in 1:nchr]    
+    allelicbias_allchr = [phasedict[chr][targetindex+3] for chr in 1:nchr]    
+    overdispersion_allchr = [phasedict[chr][targetindex+4] for chr in 1:nchr]    
+    maxlogp_allchr = [phasedict[chr][targetindex+5] for chr in 1:nchr]
+    msg = string("tused=", round(tused, digits=1), 
+        "s for all phasing runs, logp sum =",round(sum(maxlogp_allchr),digits=2), 
+        ", logp perchr = ", round.(maxlogp_allchr, digits=2))
+    printconsole(io, verbose, msg)
+    resdict_err = Dict()
+    in("doseerror",targetls) && push!(resdict_err, "doseerror" => doseerror_allchr)
+    in("baseerror",targetls) && push!(resdict_err, "baseerror" => baseerror_allchr)
+    in("allelicbias",targetls) && push!(resdict_err, "allelicbias" => allelicbias_allchr)    
+    in("overdispersion",targetls) && push!(resdict_err, "overdispersion" => overdispersion_allchr)    
+    # parent phasing
+    parenthaplo= [collect(eachcol(first(phasedict[chr]))) for chr in 1:nchr]    
+    parents = polygeno.polyped.parentinfo[!,:individual]    
+    resdict_parent = Dict([parents[i] => [j[i] for j=parenthaplo] for i=eachindex(parents)])
+    resdict_parent, resdict_err
+end
+
+function update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,runend; 
+    refparenthap::Union{Nothing,AbstractVector},
+    isrefineerror::Bool, 
+    io::Union{Nothing,IO}, minrun::Integer, maxrun::Integer,
+    verbose::Bool)       
+    for chr in chrls
+        # resls: phasing results for all runs
+        # resls[run]: phaplo, bvpair, logl, logprior_error, logl_parentdata,  ndel, targetls, doseerrorls, baseerrorls, allelicbiasls, overdispersionls         
+        # phaplo: nmaker x nparent, phased parent genotypes, set to missing at deleted markers.                
+        # logl_parentdata: list of logprior for each parent; set to nothing for fixed parent                
+        resdict = load(outfile,string("chr",chr))
+        resls = last.(sort(collect(resdict), by = x->parse(Int,replace(x[1],"run"=>""))))
+        # doseerrorls, baseerrorls, allelicbiasls, overdispersionls                 
+        phaplols = first.(resls)        
+        loglls = [val[3] for val in resls] # logl inluding logprior_error
+        loglerror_ls = [val[4] for val in resls]       
+        
+        logpls = loglls .+  loglerror_ls
+        nparent = length(resls[1][5]) # 5: logl_parentdata is a list of logprior for each parent
+        fixloglparentls = [begin 
+            fixkey = (chr, p, "fixedparent")
+            haskey(phasedict, fixkey) ? phasedict[fixkey] : nothing
+        end for p in 1:nparent]
+        loglparent_ls = [val[5] for val in resls]       
+        for ls in loglparent_ls 
+            fixls = findall(isnothing.(ls))
+            # println("chr=",chr, ",fixls=",fixls, ", fixloglparentls[fixls] = ", fixloglparentls[fixls] )
+            if !isempty(fixls)            
+                ls[fixls] .= fixloglparentls[fixls] 
+            end
+            ls
+        end         
+        if !any(isnothing.(reduce(vcat,loglparent_ls)))
+            logpls .+= sum.(loglparent_ls)
+        end        
+        ndells = [val[6] for val in resls]                  
+        maxlogp, best = findmax(logpls)        
+        deltlogpls = maxlogp .- logpls        
+        if isnothing(refparenthap)
+            refmsg = ""
         else
-            msg *= string(", logl=",round(logl,digits=1),
-                ", stuck=", nstuck,            
-                ", err=", round(doseerr,digits=4),
-                ", tused=",round(time()-startt,digits=1),"s") 
+            truechrhaplo = refparenthap[chr]
+            truedis = [sum.(PolyOrigin.cal_haplo_nmismatch(truechrhaplo, est)) for est=phaplols]            
+            truedis_phase = first.(truedis)
+            truedis_perm = last.(truedis)
+            refmsg = string("true_nphaseerr(refhap ~ runs) = ", truedis_phase,", true_npermerr = ", truedis_perm)
         end
-        push!(loglhis,logl)                                                                                        
-        printconsole(io,verbose,msg)            
-        if nstuck >= maxstuck || it == maxiter
-            break
+        bestphaplo = phaplols[best]
+        nmarker,nparent = size(bestphaplo)
+        thresdiff = round(Int,0.001*nmarker)
+        dis = [PolyOrigin.cal_haplo_nmismatch(phaplols[best],est) for est=phaplols]
+        disls_phase = first.(dis)        
+        disls_perm =  last.(dis)
+        fixedparentls = findall(sum([i .<= thresdiff for i in disls_perm]) .>= max(2,minrun)) 
+        if 1 <= length(fixedparentls) < nparent || isrefineerror           
+            # doseerrorls, baseerrorls, allelicbiasls, overdispersionls         
+            besterrls = resls[best][end-3:end]
+            remainfilels = polygenofilemtx[chr,runend+1:end]            
+            update_remainfilels(remainfilels, bestphaplo, besterrls, fixedparentls)
+            for p in fixedparentls
+                fixkey = (chr, p, "fixedparent")
+                if !haskey(phasedict, fixkey)
+                    phasedict[fixkey]  = loglparent_ls[best][p]
+                end
+            end
+        end
+        dis_phase = sum.(disls_phase)
+        dis_perm = sum.(disls_perm)
+        # ncount = sum(dis_phase .== 0)
+        ncount = sum(dis_perm[i] == 0 || deltlogpls[i] < 1 for i = eachindex(dis_perm,deltlogpls))        
+        todparentls = setdiff(1:nparent,fixedparentls)
+        summsg = string(", parents = ", isempty(fixedparentls) ? "all" : (isempty(todparentls) ? "none" : join(todparentls,"|")),             
+            ", nphaseerr(run",best," ~ runs) = ", dis_phase,
+            ", npermerr = ", dis_perm,                    
+            ", ndel = ", ndells, 
+            "\n\tlogl = ",round.(loglls,digits=2),                        
+            ", logp = ",round.(logpls,digits=2),                        
+            # "\n\tloglerror_ls = ",round.(loglerror_ls,digits=2),                        
+            # "loglparent_ls = ",round.(sum.(loglparent_ls),digits=2),                        
+        )
+        # @info string("chr=", chridls[chr]) loglparent_ls fixloglparentls
+        if ncount >= minrun || isempty(todparentls) || length(logpls) == maxrun 
+            msg = string("chr=", chridls[chr], ", done", summsg)                 
+            isempty(refmsg) || (msg *= "\n\t"*refmsg)
+            printconsole(io,verbose,msg)                        
+            resbest = (resls[best]...,maxlogp)
+            push!(phasedict, chr=>resbest)
+        else
+            msg = string("chr=", chridls[chr], ", to_be_continued", summsg)
+            isempty(refmsg) || (msg *= "\n\t"*refmsg)
+            printconsole(io,verbose,msg)
+        end                        
+    end
+    setdiff!(chrls,keys(phasedict))
+    phasedict, chrls
+end
+
+function update_remainfilels(remainfilels::AbstractVector, bestphaplo::AbstractMatrix,
+    besterrls, fixedparentls::AbstractVector)
+    isempty(remainfilels) && return nothing
+    firstgenofile =remainfilels[1]
+    polygeno = readpolygeno(firstgenofile)    
+    if !isempty(fixedparentls) || true
+        ploidyls = polygeno.polyped.parentinfo[!,:ploidy] 
+        for p in fixedparentls
+            ploidy = ploidyls[p]
+            polygeno.parentgeno[1][:,p] .= [ismissing(i) ? join(repeat(["N"],ploidy),"|") : string.(i) for i in bestphaplo[:,p]] # only one chromosome in each remainfilels    
+        end
+        polygeno.markermap[1][!, :parentformat] .= [if occursin(r"^GT",i) 
+            "GT"
+        elseif in(i, ["AD","GP","GL"])
+            string(i,"&GT")    
+        elseif occursin("&",i) 
+            ls = sort(split(i,"&")) # sort to put GT in the end
+            length(ls) == 2 || @error string("TODO for parentformat=",i)
+            if occursin(r"^GT",ls[1]) 
+                if occursin(r"^GT",ls[2]) 
+                    "GT"
+                else
+                    @error string("TODO for parentformat=",i)
+                    string(ls[i],"&GT")    
+                end
+            elseif occursin(r"^GT",ls[2]) 
+                string(ls[1],"&GT")    
+            else
+                @error string("TODO for parentformat=",i)
+                "mixed"
+            end
+        else
+            @error string("TODO for parentformat=",i)
+            "mixed"
+        end for i in polygeno.markermap[1][!, :parentformat]]
+    end
+    # besterrls: doseerrorls, baseerrorls, allelicbiasls, overdispersionls         
+    colls = [:doseerror, :baseerror, :allelicbias, :overdispersion]    
+    for i in eachindex(colls)
+        polygeno.markermap[1][!, colls[i]] .= besterrls[i] 
+    end
+    isdells = [all(ismissing.(i)) for i in eachrow(bestphaplo)]      
+    polygeno.markermap[1][!,:filter] .= map((isdel,y)->if isdel 
+        if ismissing(y) 
+            "POLYORIGINDEL"
+        else
+            if occursin(r"^POLYORIGINDEL",y) 
+                y
+            else
+                string("POLYORIGINDEL;",y)
+            end
+        end
+    else
+        y
+    end, isdells, polygeno.markermap[1][!,:filter])    
+    savepolygeno(firstgenofile,polygeno)
+    for dst in remainfilels[2:end]
+        cp(firstgenofile,dst; force=true) 
+    end
+    return nothing
+end
+
+function cal_haplo_nmismatch(refhap::AbstractMatrix, esthap::AbstractMatrix)
+    size(refhap) == size(esthap) || @error "inconsistent sizes"
+    nind = size(refhap,2)
+    nmismatch_phase = zeros(Int, nind)
+    nmismatch_perm = zeros(Int, nind)
+    b = [any(ismissing.(reduce(vcat,i))) for i in eachrow(refhap)] 
+    b = b .|| [any(ismissing.(reduce(vcat,i))) for i in eachrow(esthap)] 
+    isnonmiss = .!b
+    for p in 1:nind
+        ref_p = view(refhap,isnonmiss, p)
+        est_p = view(esthap,isnonmiss, p)
+        ploidy = length(ref_p[1])
+        ploidy == length(est_p[1]) || @error "inconsistent ploidy"
+        permls = collect(Combinatorics.permutations(1:ploidy))
+        dls = [sum(ref_p .!= [j[perm] for j in est_p]) for perm in permls]        
+        d,pos = findmin(dls)
+        nmismatch_phase[p] = d
+        if d == 0
+            npermerr = 0
+        else
+            perm = permls[pos]
+            est_p2 = [j[perm] for j in est_p]
+            (; npermerr) = calphaseerr(ref_p,est_p2)           
+        end
+         nmismatch_perm[p] = npermerr
+    end
+    [nmismatch_phase,nmismatch_perm]
+end
+
+function parentalphasing_local(polygenofilels::AbstractVector;
+    chrpairing_phase::Union{Nothing,Integer},    
+    byparent::Bool,
+    byneighbor::Bool,    
+    bindis::Real, 
+    iscorrectparent::Bool, 
+    isrefineerror::Bool,   
+    isparentdoseerror::Bool,
+    phaseerror_midparent::Union{Nothing,Real},
+    fixedphaseerror::Real,
+    doseerror::ErrorSetting,
+    baseerror::ErrorSetting,
+    allelicbias::ErrorSetting,    
+    overdispersion::ErrorSetting, 
+    tukeyfence::Real, 
+    isgreedy::Bool,
+    ismarkerspecific::Union{Nothing,Bool},
+    isdelvuong::Bool,
+    delsiglevel::Real,        
+    maxstuck::Integer,
+    maxiter::Integer,    
+    isparallel::Bool,    
+    outfile::AbstractString, 
+    io::Union{Nothing, IO}, 
+    verbose::Bool)    
+	startt = time()	    
+    chrrunls = [begin 
+        filesegs = split(first(split_allext(basename(genofile))),"_") 
+        run = replace(filesegs[end-1],"run"=>"") # filesegs[end] for tsleep
+        chrid = filesegs[end-2]
+        chr = replace(filesegs[end-3], "chr"=>"")
+        (parse(Int, chr), chrid, run)
+    end for genofile in polygenofilels]
+    jldopen(outfile,"a") do file        
+        jltempdir = dirname(first(polygenofilels))
+        tempid = tempname(jltempdir,cleanup=true)
+        tempfilels = [string(tempid, "_datalike_chr",chr, "_run",run,".jld2") for (chr, chrid, run) in chrrunls]
+        if isparallel && nprocs()>1                                 
+            logfilels = [string(tempid, "_chr",chr, "_run",run,".log") for (chr, chrid, run) in chrrunls]
+            try
+                resls = pmap((x,y,z)->parentalphasing_chr_run(x; chrpairing_phase, byparent, byneighbor, bindis,  
+                    iscorrectparent, isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror,
+                    doseerror, baseerror, allelicbias,  overdispersion, chrliketempfile=z, 
+                    tukeyfence, isgreedy,ismarkerspecific, isdelvuong, delsiglevel, 
+                    maxstuck, maxiter, logio=y, verbose), polygenofilels, logfilels,tempfilels)				                    
+                for i in eachindex(resls, logfilels,chrrunls)	
+                    if isfile(logfilels[i])			
+                        chr, chrid, run = chrrunls[i]
+                        file[string("chr", chr, "/run",run)] = resls[i]
+                    end
+                end                    
+            catch err 				
+                printconsole(io,false, string("ERROR: ",err))			
+                rethrow(err)
+            finally
+                if !isnothing(io)
+                    for f in logfilels
+                        isfile(f) && write(io,read(f))		                        
+                    end
+                end
+                rm.(logfilels,force=true)           
+            end
+        else			
+            # runres: phaplo, bvpair,logp, logphis	                                    
+            for i in eachindex(polygenofilels,chrrunls,tempfilels)				
+                runres = parentalphasing_chr_run(polygenofilels[i]; chrpairing_phase, byparent, byneighbor,  bindis,
+                    iscorrectparent, isrefineerror, isparentdoseerror, fixedphaseerror,
+                    phaseerror_midparent,doseerror, baseerror, allelicbias,overdispersion,   
+                    tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel, chrliketempfile=tempfilels[i],
+                    maxstuck, maxiter, logio=io, verbose)		
+                chr, chrid, run = chrrunls[i]
+                file[string("chr", chr, "/run",run)] = runres
+            end            
+        end					        
+        if length(chrrunls) == 1
+            chrrunls2 = string(chrrunls[1][2], "_run",chrrunls[1][3])
+        else
+            sort!(chrrunls, by = x->x[1])        
+            iils = splitindex(first.(chrrunls))
+            chrrunls2 = [string(chrrunls[ii[1]][2],"_runs",chrrunls[ii[1]][3],"-",chrrunls[ii[end]][3]) for ii in iils]
+        end
+        msg = string("tused =", round(time()-startt,digits=1), "s for phasing runs = ", chrrunls2)
+        printconsole(io,verbose,msg)		
+        rm.(tempfilels,force=true)     	
+    end
+end
+
+function parentalphasing_chr_run(polygenofile::AbstractString; 
+    chrpairing_phase::Union{Nothing,Integer},            
+    byparent::Bool,
+    byneighbor::Bool,    
+    bindis::Real,
+    iscorrectparent::Bool, 
+    isrefineerror::Bool,    
+    isparentdoseerror::Bool,
+    phaseerror_midparent::Union{Nothing,Real},
+    fixedphaseerror,
+    doseerror::ErrorSetting,
+    baseerror::ErrorSetting,
+    allelicbias::ErrorSetting,    
+    overdispersion::ErrorSetting, 
+    tukeyfence::Real, 
+    isgreedy::Bool,
+    ismarkerspecific::Union{Nothing,Bool},
+    isdelvuong::Bool,
+    delsiglevel::Real,                
+    maxstuck::Integer,
+    maxiter::Integer,      
+    chrliketempfile::AbstractString,
+    logio::Union{Nothing,AbstractString,IO},    		
+    verbose::Bool)    
+    io = isa(logio,AbstractString) ? open(logio,"w") : logio	
+	try	
+        filesegs = split(first(split_allext(basename(polygenofile))),"_") 
+        tsleep = parse(Int, replace(filesegs[end],"tsleep"=>""))
+        run = parse(Int, replace(filesegs[end-1],"run"=>""))        		
+		sleep(tsleep) # avoid reading data in parallel		        
+		tused = @elapsed polygeno = readpolygeno(polygenofile)
+		chr = 1      # polygeno contains data fdor a single chromosome
+	    chrid = polygeno.markermap[chr][1,:linkagegroup]				        
+		msg_run = string(", run=",run)
+		nmarker = size(polygeno.markermap[chr],1)
+        chrparentformat = unique(polygeno.markermap[chr][!,:parentformat])
+        chroffformat = unique(polygeno.markermap[chr][!,:offspringformat])
+		printconsole(io,verbose,string("chr=", chrid, msg_run, ", #markers=", nmarker, 
+            ", parentformat=", String.(chrparentformat), ", offspringformat=", String.(chroffformat), 
+            ", readpolygeno, tused=", round(tused,digits=1),"s"))		                        
+        # fill_parent_missing!(polygeno,chr)
+        res = parentalphasing_chr_run(polygeno, chr; chrpairing_phase, byparent, byneighbor,  bindis, 
+            iscorrectparent, isrefineerror, isparentdoseerror, fixedphaseerror,
+            phaseerror_midparent,doseerror, baseerror, allelicbias, overdispersion, 
+            tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel, 
+            maxstuck,maxiter,run, chrliketempfile, io,verbose)                
+        res
+	finally
+		isa(logio,AbstractString) && close(io)		
+	end    
+end    
+
+function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;     
+    chrpairing_phase::Union{Nothing,Integer},              
+    byparent::Bool,
+    byneighbor::Bool,        
+    bindis::Real,
+    iscorrectparent::Bool, 
+    isrefineerror::Bool,    
+    isparentdoseerror::Bool,  
+    phaseerror_midparent::Union{Nothing,Real},
+    fixedphaseerror::Real, 
+    doseerror::ErrorSetting,
+    baseerror::ErrorSetting,
+    allelicbias::ErrorSetting,    
+    overdispersion::ErrorSetting, 
+    tukeyfence::Union{Nothing,Real}, 
+    isgreedy::Bool,
+    ismarkerspecific::Union{Nothing,Bool},
+    isdelvuong::Bool,
+    delsiglevel::Real,            
+    run::Integer, 
+    maxstuck::Integer,
+    maxiter::Integer,        
+    chrliketempfile::AbstractString,
+    io::Union{Nothing,IO},
+    verbose::Bool)            
+    chrid = polygeno.markermap[chr][1,:linkagegroup]
+    chrparentgeno = polygeno.parentgeno[chr] # keep phased genotypes in format of vector{String}    
+    chrparentformat = polygeno.markermap[chr][!,:parentformat]         
+    chroffgeno = get_chroffgeno(polygeno,chr)      
+    chrmultiallele = polygeno.markermap[chr][!,:multiallele]
+    chroffformat = polygeno.markermap[chr][!,:offspringformat]                 
+    # setting for error inference
+    targetls = doseerror.isinfer ?  ["doseerror"] : String[] 
+    hasoffAD = occursin("AD",join(chroffformat))    
+    if hasoffAD
+        baseerror.isinfer && push!(targetls,"baseerror")
+        allelicbias.isinfer && push!(targetls,"allelicbias")
+        overdispersion.isinfer && push!(targetls,"overdispersion")
+    end        
+    isrefineerror = isrefineerror && !isempty(targetls)    
+    errorprior = (doseerror=doseerror.prior, baseerror = baseerror.prior, 
+        allelicbias = allelicbias.prior, overdispersion = overdispersion.prior)
+    errorsoftthresh = (doseerror = doseerror.softthresh, baseerror = baseerror.softthresh, 
+        allelicbias = allelicbias.softthresh, overdispersion = overdispersion.softthresh)
+    errorhardthresh = (doseerror = doseerror.hardthresh, baseerror = baseerror.hardthresh, 
+        allelicbias = allelicbias.hardthresh, overdispersion = overdispersion.hardthresh)            
+    # doseerror.init
+    hasparentAD = occursin("AD",join(chrparentformat))    
+    doseerrinit = isnothing(doseerror.init) ? (hasparentAD ? 0.001 : 0.01) : doseerror.init
+    estdoseerror = [ismissing(i) ? doseerrinit : i for i in polygeno.markermap[chr][!,:doseerror]]    
+    estbaseerror = [ismissing(i) ? baseerror.init : i for i in polygeno.markermap[chr][!,:baseerror]]
+    estallelicbias = [ismissing(i) ? 1.0*allelicbias.init : i for i in polygeno.markermap[chr][!,:allelicbias]]
+    estoverdispersion = [ismissing(i) ? overdispersion.init : i for i in polygeno.markermap[chr][!,:overdispersion]]            
+    if isnothing(ismarkerspecific)
+        fixtargetls = intersect(["doseerror","overdispersion","baseerror"],targetls)
+        vartargetls = intersect(["allelicbias"],targetls)
+        estdoseerror = mean(estdoseerror)
+        estbaseerror = mean(estbaseerror)        
+        estoverdispersion = mean(estoverdispersion)            
+    else
+        if ismarkerspecific
+            fixtargetls = []
+            vartargetls = intersect(["doseerror","allelicbias", "overdispersion","baseerror"],targetls)            
+        else            
+            fixtargetls = intersect(["doseerror","allelicbias", "overdispersion","baseerror"],targetls)            
+            vartargetls = []
+            estdoseerror = mean(estdoseerror)
+            estbaseerror = mean(estbaseerror)
+            estallelicbias = mean(estallelicbias)
+            estoverdispersion = mean(estoverdispersion)            
+        end
+    end        
+    
+    # calculate prior and inital
+    polyped = polygeno.polyped    
+    priorspace = get_priorstatespace(polyped,chrpairing_phase)    
+    maxvalent = isnothing(chrpairing_phase) ? 4 : max(digits(chrpairing_phase)...)    
+    priorprocess = get_priorprocess(polygeno,chr,maxvalent; bindis)   
+    isdells = [ismissing(i) ? false : occursin(r"^POLYORIGINDEL",i) for i in polygeno.markermap[chr][!,:filter]]        
+    isnondells = .!isdells
+    if any(isdells)        
+        msg = string("chr=", chrid, ", run=", run, ", delete ", sum(isdells),"/", length(isdells), " markers before phasing")
+        printconsole(io,verbose,msg)        
+        setpriorprocess!(priorprocess,findall(isdells),bindis)
+    end        
+    
+    if isrefineerror && in("doseerror",targetls)
+        if isa(estdoseerror,AbstractVector)  
+            estdoseerror .=  [i > 1e-4 ? rand(Uniform(1e-4, i)) : i for i in estdoseerror]
+        else 
+            if estdoseerror > 1e-4 
+                estdoseerror = rand(Uniform(1e-4, estdoseerror)) 
+            end
         end
     end
-    # keeping fhaploindex vlaue during local phasing
-    # set fhaploindex to missing at deleted markers
+    # if isrefineerror && in("baseerror",targetls)
+    #     if isa(estbaseerror,AbstractVector) 
+    #         estbaseerror .=   [i > 1e-5 ? rand(Uniform(1e-5,i)) : i for i in estbaseerror] 
+    #     else
+    #         if estbaseerror > 1e-5
+    #             estbaseerror = rand(Uniform(1e-5, estbaseerror)) 
+    #         end
+    #     end
+    # end       
+    phaploset, phaploweight = init_phaploprior(chrparentgeno, chrparentformat, chrmultiallele,polyped; 
+        phaseerror = fixedphaseerror,
+        doseerror = isparentdoseerror ? estdoseerror : 0.0,  
+        baseerror = estbaseerror, 
+        allelicbias = estallelicbias, overdispersion  = estoverdispersion)    
+    phaploindex= init_phaploindex(phaploweight)    
+    # phaploposterior:  posterior distribution of h^m after account for its parents' haplotypes, same as phaploweight if m is a founder. 
+    phaploposterior  = deepcopy(phaploweight)
+    if fixedphaseerror > 0 
+        msg = string("TODO: set fixed parents when phaseerror > 0")
+        @warn msg
+        printconsole(io, false,msg)
+    end
+    fixedparentls = findall([unique(length.(view(i,isnondells))) == [1] for i in phaploset])        
+    nparent = size(chrparentgeno,2)
+    for p in 1:nparent
+        gls = chrparentgeno[isnondells ,p]
+        b = [isa(gls[t],AbstractVector) && eltype(gls[t]) <: AbstractString && occursin("GT", chrparentformat[t]) for t in eachindex(gls, chrparentformat[isnondells])] 
+        if all(b)
+            if !in(p, fixedparentls) 
+                msg = string("phased parent = ",p, " is not in the fixedparentls")
+                @warn msg
+                printconsole(io, false,msg)
+            end
+        end 
+    end
+    popidls = collect(skipmissing([issubset(priorspace[i]["parentindex"],fixedparentls) ? missing : i for i in keys(priorspace)]))
+    bvpair = init_bvpair(priorspace,polyped)
+    siblogl = init_siblogl(bvpair)    
+    rand_update_bvpair!(siblogl, bvpair, phaploindex,phaploset, priorspace, priorprocess,
+        chroffgeno,chroffformat, chrmultiallele, polyped; 
+        phaseerror_midparent, byneighbor, isrand = true, incldelmarker=false, 
+        doseerror = estdoseerror, baseerror = estbaseerror, 
+        allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+    )  
+
+    msg_err = get_msg_err(targetls, priorprocess; 
+        doseerror = estdoseerror, baseerror = estbaseerror, 
+        allelicbias = estallelicbias, overdispersion = estoverdispersion)
+    msg = string("chr=", chrid, ", run=", run, ", targetls=", targetls, 
+        ", #fixedparents=", length(fixedparentls), msg_err)        
+    printconsole(io,verbose,msg)                 
+    
+    correct_minerrdiff = min(3,max(1, round(Int,size(chroffgeno,2)/5)))      
+
+    ndel_err = -1
+    nstuck = 0  
+    nstuck_correct = 0   
+    it_1ststuck = -1
+    ncorrect = iscorrectparent ? -1 : 0    
+    ndiff = ntot = 2*length(chrparentgeno) 
+    ndiffls = [2*ndiff,ndiff]
+    israndls = falses(size(chrparentgeno,2))     
+    alwaysaccept = isgreedy ? false : true
+    upbyblock  = false    
+    # upbyhalf = false
+    istucking = false    
+    tusedls = []            
+    for it=1:maxiter        
+        # starttime = time()                      
+        # update phaloindex, phaploposterior, and bvpair        
+        empty!(tusedls)      
+        msg = string("chr=",chrid,", run=", run,", it=", it)
+        if issetequal(1:nparent, fixedparentls)
+            ndiff = 0            
+            ntot = 0
+            deltlogl = 0.0
+            isaccept = true
+        else
+            tused = @elapsed ndiff,ntot, deltlogl, isaccept = update_phaplo_bvpair!(siblogl, 
+                phaploindex, phaploset, phaploweight, phaploposterior, 
+                priorspace, priorprocess, bvpair, 
+                chrparentgeno, chrparentformat, chrliketempfile, 
+                chroffgeno, chroffformat, chrmultiallele, polyped; 
+                israndls, isreversechr = iseven(it), alwaysaccept, upbyblock, upbyhalf=upbyblock,  
+                phaseerror_midparent, byneighbor, byparent,  fixedparentls, 
+                doseerror = estdoseerror, baseerror = estbaseerror, 
+                allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+            )   
+            push!(tusedls,tused)
+        end        
+        if alwaysaccept
+            deltlogl < 0 && (nstuck += 1)
+        else
+            nstuck = (deltlogl > 0 && ndiff > 0) ? 0 : (nstuck +1 + (ndiff == 0))
+        end     
+        if !issetequal(1:nparent, fixedparentls)
+            msg *= string(", #diff=",join([ndiff,ntot],"/"))  
+            msg *= string(", Δlogp=", round(deltlogl,digits=1), isaccept ? "" : "(rej)")
+            msg *= string(", #stuck=", nstuck, ", alwaysaccept=", alwaysaccept, ", byblock=", upbyblock)        
+        end
+        if !istucking
+            istucking = !alwaysaccept && (nstuck > 0 || (it >= maxiter - 1) || ndiff == 0)
+            istucking && (it_1ststuck = it)              
+        end        
+        if isrefineerror && !isempty(targetls) && (!upbyblock || (upbyblock && (nstuck == 0 || it - it_1ststuck <= 0) || ndel_err>0))            
+            vartargetls2 = istucking ? vartargetls : setdiff(vartargetls,["doseerror","baseerror"])            
+            t_var= @elapsed if isempty(vartargetls2)                
+                ndel_err = -1
+            else
+                errorbound = (it == 1 || (it == it_1ststuck) && in("doseerror", vartargetls2)) ? log(100) : log(5)
+                ndel_err = last(infer_errorls!(chrparentgeno, chrparentformat, 
+                    phaploindex,phaploset, chroffgeno, chroffformat, chrmultiallele, 
+                    bvpair, priorspace, priorprocess, polyped, vartargetls2; 
+                    phaseerror_midparent, isdellargeerr = istucking, 
+                    doseerror = estdoseerror, baseerror = estbaseerror, 
+                    allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+                    errorprior, errorsoftthresh,tukeyfence, errorhardthresh, bindis, 
+                    errorbound,  errormaxit = 20,
+                ))  
+                if it >= 2 
+                    errorprior = update_errorprior(errorprior; vartargetls = vartargetls2, estdoseerror, estbaseerror,estallelicbias,estoverdispersion)                         
+                end                
+                # @info tostring_errorprior(errorprior,targetls)                                                   
+            end            
+            fixtargetls2 = istucking ? fixtargetls : setdiff(fixtargetls,["doseerror","baseerror"])
+            t_fix = @elapsed if !isempty(fixtargetls2)
+                errorbound = (it == 1 || (it == it_1ststuck) && in("doseerror", fixtargetls2)) ? log(100) : log(5)
+                estdoseerror, estbaseerror, estallelicbias,estoverdispersion = infer_avgerror(fixtargetls2, 
+                    phaploindex, phaploset,  chrparentgeno, chrparentformat, 
+                    chroffgeno, chroffformat, chrmultiallele, bvpair, priorspace, priorprocess,polyped;     
+                    phaseerror_midparent, errorprior,  
+                    doseerror = estdoseerror, baseerror = estbaseerror, 
+                    errorbound,  errormaxit = 20,
+                    allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+                )                    
+            end
+            t_up = @elapsed if !(targetls == ["doseerror"] && !isparentdoseerror)                
+                updoseerror = isparentdoseerror ? estdoseerror : 0.0                
+                up_parent_phaploprior!(phaploindex, phaploset, phaploweight, phaploposterior, chrparentgeno, chrparentformat, 
+                    chrmultiallele,polyped; phaseerror = fixedphaseerror,
+                    doseerror = updoseerror, 
+                    baseerror = estbaseerror, 
+                    allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+                )                                     
+            end
+            msg_err = get_msg_err(targetls, priorprocess; 
+                doseerror = estdoseerror, baseerror = estbaseerror, 
+                allelicbias = estallelicbias, overdispersion = estoverdispersion)
+            if ndel_err >= 0 
+                msg_err *= string(istucking ? ", #del_err=" : ", #large_err=", ndel_err) 
+            end              
+            tused = t_var + t_fix + t_up           
+            push!(tusedls,tused)          
+            empty!(lru_genolike_GTunphased)
+            empty!(lru_genolike_GTphased)    
+            empty!(lru_genolike_AD)          
+        else
+            msg_err = ""                            
+        end
+        if iscorrectparent && istucking
+            # modify phaploindex, phaploset, and phaloweight
+            # corrections might result in phases with zero weight; In cal_logl_parentdata, zero weight is replaced with 1e-8                      
+            tused = @elapsed changelogp, correctdf = parentcorrect!(phaploindex, phaploset, phaploweight, phaploposterior, 
+                chroffgeno, chroffformat, chrmultiallele, priorspace, priorprocess, polyped; 
+                bvpair,                
+                phaseerror_midparent, callthreshold = 0.7, minerrdiff = correct_minerrdiff, 
+                doseerror = estdoseerror, baseerror = estbaseerror, 
+                allelicbias = estallelicbias, overdispersion = estoverdispersion,      
+            )                              
+            correctapt = changelogp > 0
+            push!(tusedls,tused)
+            ncorrect = size(correctdf,1)
+            msg_correct = string(", #correct=", ncorrect)
+            ncorrect > 0 && (msg_correct *= correctapt ? "(accepted)" : "(rejected)")
+            if ncorrect == 0 || !correctapt 
+                nstuck_correct += 1
+            else
+                nstuck_correct = 0
+            end
+            nstuck_correct >= 2 && (iscorrectparent = false)            
+        else
+            correctapt = false
+            msg_correct = ""
+        end
+
+        if isdelvuong && istucking 
+            # priorprocess is modified
+            tused = @elapsed deltt = polymarkerdel!(bvpair, phaploindex,phaploset, priorspace, priorprocess,
+                chroffgeno, chroffformat, chrmultiallele; delsiglevel, phaseerror_midparent, 
+                doseerror = estdoseerror, baseerror = estbaseerror, 
+                allelicbias = estallelicbias, overdispersion = estoverdispersion, bindis,         
+            )             
+            push!(tusedls,tused)         
+            ndel= length(deltt)               
+            msg_del = string(", #del_test=", ndel)
+            ndel == 0 && (isdelvuong = false)
+        else
+            ndel = -1
+            msg_del = ""         
+        end                                  
+        if !all(isempty.([msg_err, msg_correct, msg_del]))            
+            tusedls[1] += @elapsed rand_update_bvpair!(siblogl, bvpair, phaploindex,phaploset, priorspace, priorprocess,
+                chroffgeno,chroffformat, chrmultiallele, polyped;                 
+                phaseerror_midparent, byneighbor, isrand = true, incldelmarker=false, 
+                doseerror = estdoseerror, baseerror = estbaseerror, 
+                allelicbias = estallelicbias, overdispersion = estoverdispersion,  popidls,      
+            )            
+        end
+        msg *= string(msg_err,  msg_correct, msg_del)    
+        msg *= string(", tused=", join(round.(tusedls,digits=1),"|"),"s")  
+        printconsole(io,verbose,msg)     
+
+        push!(ndiffls, ndiff)
+        if !alwaysaccept && upbyblock && ndel <= 0  && ndel_err <= 0         
+            if (nstuck >= maxstuck && !iscorrectparent) || it == maxiter || (ndiff == 0 && ndiffls[end-1] == 0) 
+                break
+            end            
+        end        
+        # update alwaysaccept and upbyblock        
+        if alwaysaccept            
+            if ndiff <= max(1, 0.01*ntot) || (ndiff >= ndiffls[end-1] && it >= 4)                
+                alwaysaccept = false        
+                nstuck = 0                
+            end
+        end
+        # if !upbyhalf && !alwaysaccept  
+        #     if nstuck >  0 || ndiff == 0
+        #         upbyhalf = true
+        #         nstuck = 0                
+        #     end
+        # end
+        if !upbyblock && !alwaysaccept  
+            if nstuck >= maxstuck || ndiff == 0
+                upbyblock = true                
+                nstuck = 0            
+            end       
+        end    
+    end    
+    if !isempty(targetls) && isrefineerror
+        msg = string("chr=",chrid,", run=", run, ", ")
+        msg *= tostring_errorprior(errorprior,targetls)
+        printconsole(io,verbose,msg)     
+    end
+    # calculate logp used for selectin best phasinfg run    
+    rand_update_bvpair!(siblogl, bvpair,phaploindex,phaploset, priorspace, priorprocess,
+        chroffgeno,chroffformat, chrmultiallele, polyped; 
+        phaseerror_midparent, byneighbor, isrand = false, incldelmarker=true,  # isrand affects bvpair and thus logl for deleted marerks
+        doseerror = estdoseerror, baseerror = estbaseerror, 
+        allelicbias = estallelicbias, overdispersion = estoverdispersion,           
+    )  
+    logl = sum_margloglls(siblogl)    
+    # uniform prior for  bvpair, so its prioir is not included. 
+    # logprior_error: incldue deleted markers    
+    logprior_error = cal_logprior_error(targetls, estdoseerror, estbaseerror, estallelicbias, estoverdispersion, errorprior)    
+    # logl_parentdata: list of logprior for each parent
+    logl_parentdata = cal_logl_parentdata(phaploindex, phaploweight)
+    if !isempty(fixedparentls)
+        logl_parentdata = [in(i,fixedparentls) ? nothing : logl_parentdata[i] for i in eachindex(logl_parentdata)]
+    end 
+
+    # set phaplo to missing at deleted markers
+    phaplo = get_phaplo(phaploindex,phaploset)    
     pri1=first(values(priorprocess))
     excl=.!(pri1.markerincl)
-    for i=fhaploindex
-        i[excl] .= missing
-    end
-    [fhaploindex, bvpair,loglhis[end], loglhis]
+    ndel = sum(excl)
+    if ndel > 0
+        phaplo = Matrix{Any}(phaplo)
+        phaplo[excl,:] .= missing        
+    end        
+
+    phaplo, bvpair,logl, logprior_error, logl_parentdata, ndel, targetls, estdoseerror, estbaseerror, estallelicbias,estoverdispersion      
 end
 
-function logldoseerr(doseerr::Real,bvpair::AbstractVector,
-    priorspace::AbstractDict,priorprocess::AbstractDict,
-    chrdose::AbstractMatrix, deriveddose::AbstractDict,polygeno::PolyGeno)
-    doseerrls = [doseerr for i=1:size(chrdose,1)]
-    bvpairprop = [[i] for i=bvpair]
-    logllist = calmarglogl(doseerrls, deriveddose, chrdose,
-        priorspace,priorprocess,polygeno,bvpairprop)
-    logl=sum(vcat(logllist...))
-    logl
+function tostring_errorprior(errorprior::NamedTuple, targetls::AbstractVector)
+    isempty(targetls) && return ""
+    join([string(i,".prior=", errorprior[Symbol(i)]) for i in targetls],", ")    
 end
 
-function updatedoseerr(doseerr::Real,bvpair::AbstractVector,
-    fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    priorspace::AbstractDict,priorprocess::AbstractDict,
-    chrdose::AbstractMatrix, polygeno::PolyGeno)
-    accuracygoal, precisiongoal, itmax = 3, 3, 20
-    lowbound,upbound = log(10^(-6.0)), log(min(0.95,doseerr+0.25))
-    # here x is Jaccobi factor for transformation eps->log(eps)
-    fhaplo= getfhaplo(fhaploindex,fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno)
-    f(x)=logldoseerr(exp(x),bvpair,priorspace,priorprocess,
-        chrdose,deriveddose,polygeno)
-    x0=log(doseerr)
-    newx, logleps, his=brentMax(f,lowbound,upbound,x0,
-        precisiongoal=precisiongoal,accuracygoal=accuracygoal,maxiter=itmax)
-    # newx,logleps,accept =metroplos_norm(f,x0,maxiter=10,
-    #     temperature=temperature,propstd=log(3))
-    # @info "infer doseerror his: " his
-    exp(newx),logleps
-end
-
-function updatefhaplobvpair(fhaploindex::AbstractVector,
-    bvpair::AbstractVector,siblogl::AbstractVector,
-    fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    doseerr::Real,chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,byparent::Bool,byneighbor::Bool)
-    if byparent
-        nf= size(polygeno.designinfo,2)-1
-        findexlist = 1:nf
-    else
-        npop = size(polygeno.designinfo,1)
-        findexlist = [findall(Vector(polygeno.designinfo[popindex,2:end]) .> 0) for popindex=1:npop]
-    end
-    newfhaploindex = deepcopy(fhaploindex)
-    newbvpair,newsiblogl = deepcopy(bvpair),deepcopy(siblogl)
-    doseerrls = [doseerr for i=1:size(chrdose,1)]
-    # tuse1=tuse2=0
-    for findex=findexlist
-        # println("findex=",findex)
-        newfphase = randfphase(findex,newfhaploindex,
-            fhaploset,fhaploweight,doseerr,
-            newbvpair,chrdose,priorspace,priorprocess,polygeno)
-        if byparent
-            b = .!(ismissing.(newfphase))
-            newfhaploindex[findex][b] .= newfphase[b]
+function update_errorprior(errorprior::NamedTuple; 
+    vartargetls::AbstractVector,
+    estdoseerror::Union{Real,AbstractVector}, 
+    estbaseerror::Union{Real,AbstractVector},  
+    estallelicbias::Union{Real,AbstractVector}, 
+    estoverdispersion::Union{Real,AbstractVector})
+    errnamels = string.(keys(errorprior))
+    priorls = [begin 
+        prior = errorprior[Symbol(errname)]
+        if errname == "doseerror"
+            errls = estdoseerror
+        elseif errname == "baseerror"
+            errls = estbaseerror
+        elseif errname == "allelicbias"
+            errls = estallelicbias
+        elseif errname == "overdispersion"
+            errls = estoverdispersion
         else
-            for i=1:length(findex)
-                b = .!(ismissing.(newfphase[i]))
-                newfhaploindex[findex[i]][b] .= newfphase[i][b]
+            @error string("unknow errname=",errname)
+        end
+        if isa(errls, AbstractVector) && in(errname, vartargetls)
+            errmean = mean(errls)
+            errvar = var(errls)
+            if isa(prior,LogNormal)
+                ls = log.(errls)
+                prior = LogNormal(round(mean(ls),sigdigits=4),round(std(ls),sigdigits=4))                
+            elseif isa(prior, Gamma) || isa(prior, Exponential)                                
+                prior = Gamma(round(errmean^2/errvar,sigdigits=6),round(errvar/errmean,sigdigits=6))
+            elseif isa(prior, Beta)                    
+                prefact = (errmean*(1-errmean)/errvar - 1)
+                prior = Beta(round(prefact*errmean,sigdigits=6),round(prefact*(1-errmean),sigdigits=6))
+            elseif isa(prior, Uniform)    
+                errmin,errmax = extrema(errls)
+                prior = Uniform(errmin,errmax)            
+            else
+                if in(errname, ["doseerror", "baseerror"])                    
+                    prefact = (errmean*(1-errmean)/errvar - 1)
+                    prior = Beta(round(prefact*errmean,sigdigits=6),round(prefact*(1-errmean),sigdigits=6))
+                elseif errname == "allelicbias"
+                    ls = log.(errls)
+                    prior = LogNormal(round(mean(ls),sigdigits=4),round(std(ls),sigdigits=4))                                    
+                elseif errname == "overdispersion"                    
+                    prior = Gamma(round(errmean^2/errvar,sigdigits=6),round(errvar/errmean,sigdigits=6))
+                else
+                    @error string("unknow errname=",errname)
+                end
             end
         end
-        # popidls = keys(priorspace)
-        # println("findex=",findex,", torandbvpair")
-        popidls = popfromfindex(findex,polygeno)
-        if byneighbor
-            updatebvpair!(newbvpair,newsiblogl,newfhaploindex,fhaploset,
-                doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
-        else
-            randbvpair!(newbvpair,newsiblogl,newfhaploindex,fhaploset,
-                doseerrls,chrdose,priorspace,priorprocess,polygeno,popidls)
-        end
-        # println("\t[tfphase,tbvpair]=",[tuse1,tuse2])
-    end
-    newfhaploindex,newbvpair,newsiblogl,round(sum(newsiblogl),digits=2)
+        prior 
+    end for errname in errnamels]
+    (; (keys(errorprior) .=> priorls)...)
 end
 
-function randfphase(findex,fhaploindex::AbstractVector,
-    fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    doseerr::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno)
-    isreverse = rand([true,false])
-    if isreverse
-        reverse!.(fhaploindex)
-        reverse!.(fhaploset)
-        reverse!.(fhaploweight)
-        chrdose=reverse(chrdose, dims=1)
-        for (key, val) in priorprocess
-             reverseprior!(val)
-        end
-    end
-    fwphaseset,fwlogpgeno,fwlogpost,bvdict=polyforward(findex,fhaploindex,
-        fhaploset,fhaploweight,doseerr,bvpair,chrdose,priorspace,priorprocess,polygeno)
-    fphases = first(polybackward(fwlogpgeno,fwlogpost,bvdict,priorprocess))
-    fphases = map((x,y)->ismissing(y) ? missing : x[y],fwphaseset,fphases)
-    if ndims(findex) == 0
-        res = fphases
-    elseif ndims(findex) == 1
-        nfindex = length(findex)
-        if nfindex==1
-            res = [fphases]
-        elseif nfindex==2
-            hh0 = map((i,j)->[div(i-1,j)+1,rem(i-1,j)+1],fphases,length.(fhaploset[last(findex)]))
-            hh = reduce(hcat,hh0)
-            res=[hh[i,:] for i=1:size(hh,1)]
-        else
-            @error(string("too many #parents = ", nfindex, " in the ", popindex, "-th subpopulation"))
-        end
+function cal_israndls(polyped::PolyPed; minprogeny_perploidy=10)
+    parent2off = get_parent2progeny(polyped)
+    parentls = polyped.parentinfo[!,:individual]
+    ploidyls = polyped.parentinfo[!,:ploidy]
+    nls = [length(parent2off[p]) for p in parentls]
+    nls .>= (minprogeny_perploidy .* ploidyls)
+end
+
+function cal_ndiff_phaploindex(oldphaploindex::AbstractVector, newphaploindex::AbstractVector, 
+    phaploset::AbstractVector, markerincl,fixedparentls::AbstractVector)
+    phaplo = get_phaplo(oldphaploindex, phaploset)
+    newphaplo = get_phaplo(newphaploindex, phaploset)
+    nparent = size(phaplo,2)
+    if isempty(fixedparentls)
+        ndiff = sum(cal_parentgeno_nphaseerr(phaplo[markerincl,:], newphaplo[markerincl,:])) 
     else
-        @error(string("wrong dimension of findex = ", nfindex))
+        nonfixedls = setdiff(1:nparent, fixedparentls)
+        ndiff = sum(cal_parentgeno_nphaseerr(phaplo[markerincl,nonfixedls], newphaplo[markerincl,nonfixedls])) 
     end
-    if isreverse
-        ndims(findex) == 0 ? reverse!(res) : reverse!.(res)
-        reverse!.(fhaploindex)
-        reverse!.(fhaploset)
-        reverse!.(fhaploweight)
-        chrdose=reverse(chrdose, dims=1)
-        for (key, val) in priorprocess
-             reverseprior!(val)
+    ntot = sum(markerincl) * (nparent -length(fixedparentls))
+    ndiff, ntot
+end
+
+function cal_parentgeno_nphaseerr(refparentgeno::AbstractMatrix, estparentgeno::AbstractMatrix)
+    refhapls = [permutedims(reduce(hcat,i)) for i in eachcol(refparentgeno)]
+    esthapls = [permutedims(reduce(hcat,i)) for i in eachcol(estparentgeno)]
+    nphaseerr=last(calpermhomolog(refhapls, esthapls)) # each vector element refers to a parent
+    nphaseerr
+end
+
+
+function up_phaploindex!(phaploindex::AbstractVector, phaplo::AbstractMatrix, 
+    phaploset::AbstractVector, 
+    phaploweight::AbstractVector,
+    phaploposterior::AbstractVector)
+    for j in eachindex(phaploset)
+        phaploset_j = phaploset[j]
+        phaploweight_j = phaploweight[j]
+        phaploposterior_j = phaploposterior[j]
+        phaplo_j = phaplo[:,j]
+        for i in eachindex(phaploset_j,phaploweight_j)
+            hh,ww,pp = phaploset_j[i], phaploweight_j[i], phaploposterior_j[i]
+            h = phaplo_j[i]
+            hindex = findfirst(==(h),hh)
+            if isnothing(hindex)
+                push!(hh,h)
+                ww .*= 0.99
+                push!(ww, 0.01)
+                pp .*= 0.99
+                push!(pp, 0.01)
+                phaploindex[j][i] = length(hh)
+            else
+                phaploindex[j][i] = hindex
+            end
+        end                        
+    end
+    phaploindex
+end    
+
+function up_parent_phaploprior!(phaploindex::AbstractVector,
+    phaploset::AbstractVector, phaploweight::AbstractVector,    
+    phaploposterior::AbstractVector, 
+    chrparentgeno::AbstractMatrix, 
+    chrparentformat::AbstractVector, 
+    chrmultiallele::AbstractVector, 
+    polyped::PolyPed; 
+    phaseerror::Real, 
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},
+    overdispersion::Union{Real,AbstractVector})
+    phaplo = get_phaplo(phaploindex, phaploset)
+    phaploset2, phaploweight2 = init_phaploprior(chrparentgeno, chrparentformat, chrmultiallele,polyped; 
+        phaseerror, doseerror, baseerror, allelicbias, overdispersion, onlyfounder=false)      
+    nparent = length(phaploset)
+    nmarker = length(first(phaploset))
+    for p in 1:nparent
+        phaploset2_p = phaploset2[p]
+        phaploweight2_p = phaploweight2[p]
+        
+        phaploset_p = phaploset[p]        
+        phaploweight_p = phaploweight[p]        
+        phaploposterior_p = phaploposterior[p]
+        for t in 1:nmarker
+            current = phaploset_p[t]
+            new = phaploset2_p[t]
+            current == new && continue            
+            if issubset(current,new)
+                # replace current with new                
+                phaploset_p[t] = copy.(phaploset2_p[t])                
+                phaploweight_p[t] = phaploweight2_p[t]           
+                phaploposterior_p[t] = phaploweight2_p[t]     
+            else
+                # merge current and new
+                hls = union(current, new)
+                wls = zeros(length(hls))
+                for h in hls
+                    if in(h,current)
+                        i = findfirst(==(h),current)
+                        wls[i] += phaploweight_p[t][i]
+                    end
+                    if in(h,new)
+                        i = findfirst(==(h),new)
+                        wls[i] += phaploweight2_p[t][i]
+                    end
+                end 
+                wls ./= sum(wls)
+                phaploweight_p[t] = wls
+                phaploposterior_p[t] = copy(wls)
+                phaploset_p[t] = copy.(hls)                
+            end            
         end
+    end                                                           
+    phaploset .= phaploset2
+    phaploweight .= phaploweight2
+    phaploposterior .= deepcopy.(phaploweight)
+    up_phaploindex!(phaploindex, phaplo, phaploset, phaploweight,phaploposterior)  
+    nothing
+end
+
+
+# TODO: for other formats GT, AD, ..
+function get_chroffgeno(polygeno::PolyGeno, chr::Integer)
+    # [ismissing(i) ? missing : unphased_genocode_2_index(i) for i in polygeno.offspringgeno[chr]]
+    res = copy(polygeno.offspringgeno[chr])
+    chrformat = polygeno.markermap[chr][!,:offspringformat]
+    b = chrformat .== "GT_unphased"
+    if any(b)
+        subres = view(res, b, :)
+        subres .= [ismissing(i) ? missing : unphased_genocode_2_index(i) for i in subres]
     end
     res
 end
 
-function randinitbvpair(priorspace::AbstractDict,polygeno::PolyGeno)
-    [begin
-        popid = polygeno.offspringinfo[off,:population]
-        valents = priorspace[popid]["valent"]
-        isnonmiss = .!ismissing.(valents)
-        rand(LinearIndices(valents)[isnonmiss])
-    end for off =1:size(polygeno.offspringinfo,1)]
-end
 
-function getbvpairprop(priorspace,polygeno)
-    [begin
-        popid = polygeno.offspringinfo[off,:population]
-        valents = priorspace[popid]["valent"]
-        isnonmiss = .!ismissing.(valents)
-        LinearIndices(valents)[isnonmiss]
-    end for off=1:size(polygeno.offspringinfo,1)]
-end
-
-function getbvpairprop(priorspace::AbstractDict,polygeno::PolyGeno,
-    popid::AbstractString,dims::Integer, bvnow::Integer)
-    valents = priorspace[popid]["valent"]
-    isnonmiss = .!ismissing.(valents)
-    cart = CartesianIndices(valents)
-    linear = LinearIndices(valents) .* isnonmiss
-    pos = cart[bvnow]
-    if dims==1
-        res = linear[pos[1],:]
-        res = res[res .> 0]
-    elseif dims==2
-        res = linear[:,pos[2]]
-        res = res[res .> 0]
-    else
-        @error string("wrong keyarg  dims =",dims)
-    end
-    res
-end
-
-function getbvpairprop(priorspace::AbstractDict,polygeno::PolyGeno,
-    popid::AbstractString,loglgrid::AbstractMatrix)
-    valents = priorspace[popid]["valent"]
-    isnonmiss = .!ismissing.(valents)
-    cart = CartesianIndices(valents)
-    linear = LinearIndices(valents) .* isnonmiss
-    # ntop = round(Int,length(loglgrid)^0.25)
-    nb=priorspace[popid]["valentneighbor"]
-    ntop=round(Int,mean(length.(nb[1])))
-    isloglnonmiss = .!ismissing.(loglgrid)
-    p = sortperm(loglgrid[isloglnonmiss],rev=true)
-    (length(p) >= ntop) && (p = p[1:ntop])
-    top = cart[isloglnonmiss][p]
-    xtop = unique([i[1] for i=top])
-    ytop = unique([i[2] for i=top])
-    res=reshape(linear[xtop,ytop],:)
-    res[res .> 0]
-end
-
-function uploglgrid!(loglgrid::AbstractMatrix,bvnow::Integer,
-    dataprob::AbstractVector,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString,
-    snporder::AbstractVector)
-    # itmax=ceil(Int, sqrt(size(loglgrid,1)))
-    itmax = size(loglgrid,1)
-    nstuckmax=ceil(Int, itmax/5)
-    nstuck=0
-    loglnow = -Inf
-    for it=1:itmax
-        dims = rem(it,3)
-        if dims == 0
-            bvprop = getbvpairprop(priorspace,polygeno,popid,loglgrid)
-        else
-            bvprop = priorspace[popid]["valentneighbor"][bvnow][dims]
-        end
-        loglls = upoffmarglogl!(loglgrid,dataprob, popid, priorspace,priorprocess,bvprop,snporder)
-        logl = maximum(loglls)
-        bv = rand(bvprop[loglls .== logl])
-        # println("   it=",it,",(bv,logl)=",(bv,logl))
-        (bv == bvnow && logl ≈ loglnow) ? nstuck +=1 : nstuck = 0
-        bvnow = bv
-        loglnow = logl
-        nstuck>=nstuckmax && break
-    end
-    bvnow
-end
-
-function randbvprop(priorspace::AbstractDict,polygeno::PolyGeno,
-    popid::AbstractString,loglgrid::AbstractMatrix)
-    valents = priorspace[popid]["valent"]
-    isnonmiss = .!ismissing.(valents)
-    # cart = CartesianIndices(valents)
-    linear = LinearIndices(valents)
-    bool = ismissing.(loglgrid) .* isnonmiss
-    res = linear[bool]
-    length(res) == 0 ? missing : rand(res)
-end
-
-function randbvprop(bvinput::Integer,loglinput::Real,dataprob::AbstractVector,
-    priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popid::AbstractString,
-    snporder::Union{Nothing,AbstractVector}=nothing)
-    loglgrid = Matrix{Union{AbstractFloat,Missing}}(missing,size(priorspace[popid]["valent"]))
-    minrun = 3
-    maxrun = 10
-    loglhis = [-Inf]
-    bvhis = [0]
-    isnothing(snporder) && (snporder=1:length(dataprob))
-    for run=1:maxrun
-        if run == 1
-            bvnow = bvinput
-        else
-            bvnow = randbvprop(priorspace,polygeno,popid,loglgrid)
-        end
-        ismissing(bvnow) && break
-        bv = uploglgrid!(loglgrid,bvnow,dataprob,priorspace,priorprocess,
-            polygeno,popid,snporder)
-        logl = loglgrid[bv]
-        push!(bvhis,bv)
-        push!(loglhis,logl)
-        nrepeat = sum(loglhis .== max(loglhis...))        
-        nrepeat == minrun && break
-    end
-    bv,logl=last(bvhis), last(loglhis)
-    if logl < loglinput
-        bv = uploglgrid!(loglgrid,bvinput,dataprob,priorspace,priorprocess,
-            polygeno,popid,snporder)
-        logl = loglgrid[bv]
-    end
-    bv, logl
-end
-
-function updatebvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
-    fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    doseerrls::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popidls;
-    snporder::Union{Nothing,AbstractVector}=nothing,
-    show_progress::Bool=false)
-    # startt=time()
-    fhaplo=getfhaplo(fhaploindex,fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)
-    noff = sum([in(i, popidls) for i in polygeno.offspringinfo[!,:population]])
-    progress = Progress(noff;
-        enabled = show_progress,
-        desc=string("Update chrpairing..."))
-    for popid = popidls
-        offls = findall(polygeno.offspringinfo[!,:population] .== popid)
-        ploidy = polygeno.offspringinfo[first(offls),:ploidy]
-        for off=offls
-            # println("off=", off,",t=",round(time()-startt,digits=2))
-            offdose = chrdose[:,off]
-            popid = polygeno.offspringinfo[off,:population]
-            dataprob = caldataprob(offdose,ploidy,deriveddose[popid],doseerrls)
-            bvpair[off],siblogl[off] = randbvprop(bvpair[off],siblogl[off],
-                dataprob,priorspace,priorprocess,polygeno,popid,snporder)
-            next!(progress)
-        end
-    end
-    markerincl = first(values(priorprocess)).markerincl
-    tseq = findall(.!markerincl)
-    if length(tseq)>0
-        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,doseerrls,
-            bvpair,priorspace,priorprocess,polygeno)
-        offls = findall([i in popidls for i=polygeno.offspringinfo[!,:population]])
-        siblogl[offls] .+= isologl[offls]
-    end
-    bvpair,siblogl
-end
-
-function randbvpair!(bvpair::AbstractVector,siblogl::AbstractVector,
-    fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    doseerrls::AbstractVector,chrdose::AbstractMatrix,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno,popidls;
-    isrand::Bool=true,
-    snporder::Union{Nothing,AbstractVector}=nothing)
-    fhaplo=getfhaplo(fhaploindex,fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno,popidls)
-    bvpairprop = getbvpairprop(priorspace,polygeno)
-    logllist = calmarglogl(doseerrls,deriveddose,chrdose,priorspace,
-        priorprocess,polygeno,bvpairprop;snporder)
-    offls = findall(.!(ismissing.(logllist)))
-    # problist, siblogl[offls]=normalizelogl(logllist[offls])
-    problist = first(normalizelogl(logllist[offls]))
-    if isrand
-        bvpair0=[rand(Categorical(i)) for i = problist]
-    else
-        bvpair0=[rand(findall(i .== max(i...))) for i = problist]
-    end
-    bvpair[offls]=map((x,y)->x[y],bvpairprop[offls],bvpair0)
-    siblogl[offls]=[max(i...) for i = logllist[offls]]
-    # bvpair0=[rand(findall(i .== max(i...))) for i = logllist[offls]]
-    # siblogl[offls]=map((x,y)->x[y], logllist[offls],bvpair0)
-    # bvpair[offls]=map((x,y)->x[y],bvpairprop[offls],bvpair0)
-    markerincl = first(values(priorprocess)).markerincl
-    tseq = findall(.!markerincl)
-    if length(tseq)>0
-        isologl = calisomarkerlogl(tseq,fhaploindex,fhaploset,chrdose,doseerrls,
-            bvpair,priorspace,priorprocess,polygeno)
-        offls = findall([i in popidls for i=polygeno.offspringinfo[!,:population]])
-        siblogl[offls] .+= isologl[offls]
-    end
-    bvpair,siblogl
-end
-
-function calisomarkerlogl(tseq::AbstractVector,fhaploindex::AbstractVector,
-    fhaploset::AbstractVector,chrdose::AbstractMatrix,
-    doseerrls::AbstractVector,bvpair::AbstractVector,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno)
-    sum(begin
-        # println(["t=",t, "; ",fhaploindex[i][t] for i=1:length(fhaploindex)])
-        # markerfphase= [i[t] for i=fhaploset]
-        # markerfphase=[begin
-        #     j=fhaploindex[i][t]
-        #     j2= ismissing(j) ? (1:length(fhaploset[i][t])) : [j]
-        #     fhaploset[i][t][j2]
-        # end for i=1:length(fhaploindex)]
-        markerfphase=[fhaploset[i][t][[fhaploindex[i][t]]] for i=1:length(fhaploindex)]
-        markeroffdose = chrdose[t,:]
-        calisomarkerlogl(markerfphase,markeroffdose,doseerrls,bvpair,priorspace,priorprocess,polygeno)
-    end for t=tseq)
-end
-
-function calisomarkerlogl(markerfphase::AbstractVector,markeroffdose::AbstractVector,
-    doseerrls::AbstractVector,bvpair::AbstractVector,priorspace::AbstractDict,
-    priorprocess::AbstractDict,polygeno::PolyGeno)
-    if length(markerfphase)==1
-        fhaplolist = markerfphase[1]
-    else
-        fhaplolist = getouterlist(markerfphase...)
-    end
-    res= zeros(length(markeroffdose),length(fhaplolist))
-    popidls = polygeno.designinfo[!,:population]
-    for kk=1:length(fhaplolist)
-        deriveddose = getderiveddose(fhaplolist[kk]',priorspace,polygeno,popidls)
-        for popid=popidls
-            offls = findall(polygeno.offspringinfo[!,:population] .== popid)
-            ploidy = polygeno.offspringinfo[first(offls),:ploidy]
-            condstates = priorspace[popid]["condstate"]
-            keyls = priorspace[popid]["valentkey"]
-            res[offls,kk]=[begin
-                bv = bvpair[off]
-                ddose = deriveddose[popid][:, condstates[bv]]
-                dataprob = only(caldataprob([markeroffdose[off]],ploidy,ddose,doseerrls))
-                startprob = only(getstartprobls(priorprocess,[keyls[bv]]))
-                log(dot(startprob,dataprob))
-            end for off=offls]
-        end
-    end
-    maximum(res,dims=2)[:,1]
-end
-
-function polyforward(findex,fhaploindex::AbstractVector,
-    fhaploset::AbstractVector,fhaploweight::AbstractVector,
-    doseerr::Real,bvpair::AbstractVector,chrdose::AbstractMatrix,
-    priorspace::AbstractDict,priorprocess::AbstractDict,polygeno::PolyGeno)
-    # startt=time()
-    deriveddose = getderiveddose(findex,fhaploindex,fhaploset,priorspace,polygeno,bvpair)
-    bvdict = getbvdict(findex,bvpair,priorspace,polygeno)
-    phaseweight=getphaseweight(findex,fhaploweight)
-    nseq=size(chrdose,1)
-    fwlogpost = Vector{Union{Missing,Vector}}(missing,nseq)
-    fwlogpgeno = Vector{Union{Missing,Vector}}(missing,nseq)
-    fwphaseset = Vector{Union{Missing,Vector}}(missing,nseq)
-    # markerincl is the same for all keys of priorprocess
-    tseq=findall(first(values(priorprocess)).markerincl)
-    t=tseq[1]
-    dataprob = calsitedataprob(t,findex,doseerr,bvpair,deriveddose,chrdose,priorspace,polygeno)
-    # orde4ring of keys(bvdict) = popfromfindex, the same as that for dataprob
-    startprob=[getstartprobls(priorprocess, bvdict[id][2]) for id=keys(bvdict)]
-    # size(dataprobls[k][ind],1)is the same for any ind=1,...
-    fwlogpost[t]=[[Vector{Float64}(log.(startprob[k][ind] .* dataprob[k][ind][g,:])) for
-        g=1:size(dataprob[k][1],1),ind=1:length(dataprob[k])] for k=1:length(startprob)]
-    fwlogpost[t], fwlogpgeno[t], fwphaseset[t]  = normfwpost(fwlogpost[t],phaseweight[t])
-    for marker=2:length(tseq)
-        t=tseq[marker]
-        tbef=tseq[marker-1]
-        dataprob = calsitedataprob(t,findex,doseerr,bvpair,deriveddose,chrdose,
-                    priorspace,polygeno)
-        tranprob=[gettranprobls(priorprocess, bvdict[id][2],tbef) for id=keys(bvdict)]
-        fwlogpost[t] =[begin
-            ls4=[begin
-                ls = log.(exp.(reduce(hcat,fwlogpost[tbef][k][:,ind])') * tranprob[k][ind])
-                # logsumexp([-Inf]) = -Inf
-                ls2 = [logsumexp(ls[:,i] + fwlogpgeno[tbef])  for i=1:size(ls,2)]
-                ls3 = log.(dataprob[k][ind])
-                ls4 = [ls3[i,:] + ls2 for i=1:size(ls3,1)]
-                ls4
-            end for ind=1:length(dataprob[k])]
-            reduce(hcat, ls4)
-        end for k=1:length(tranprob)]
-        fwlogpost[t], fwlogpgeno[t], fwphaseset[t]  = normfwpost(fwlogpost[t],phaseweight[t])
-    end
-    fwphaseset,fwlogpgeno,fwlogpost,bvdict
-end
-
-function getphaseweight(findex, fhaploweight::AbstractVector)
-    if typeof(findex) <:AbstractVector
-        if length(findex)>1
-            phaseweight0 = reduce(hcat,fhaploweight[findex])
-            phaseweight = [kron(i...) for i=eachrow(phaseweight0)]
-        elseif length(findex)==1
-            phaseweight = fhaploweight[findex[1]]
-        else
-            @error string("wrong findex = ",findex)
-        end
-    elseif typeof(findex) <:Integer
-        phaseweight = fhaploweight[findex]
-    else
-        @error string("wrong findex = ",findex)
-    end
-    phaseweight
-end
-
-function polybackward(fwlogpgeno::AbstractVector,fwlogpost::AbstractVector,
-    bvdict::AbstractDict,priorprocess::AbstractDict)
-    nseq = length(fwlogpgeno)
-    phase = Vector{Union{Missing,Int}}(missing,nseq)
-    orig = Vector{Union{Missing,Vector}}(missing,nseq)
-    tseq = findall(.!ismissing.(fwlogpgeno))
-    tend = tseq[end]
-    pphase = exp.(fwlogpgeno[tend] .- logsumexp(fwlogpgeno[tend]))
-    phase[tend]=rand(Categorical(pphase))
-    orig[tend]=[begin
-        logpost=(fwlogpost[tend][k])[phase[tend],:]
-        [rand(Categorical(exp.(i .- logsumexp(i)))) for i=logpost]
-    end for k=1:length(fwlogpost[tend])]
-    for marker=length(tseq)-1:-1:1
-        t=tseq[marker]
-        tafter=tseq[marker+1]
-        tranprob=[gettranprobls(priorprocess, bvdict[id][2],t) for id=keys(bvdict)]
-        # #phases (=ng) depends on marker t, but not the subpopulation indnex k,
-        ng = size(fwlogpost[t][1],1)
-        weight = [ones(0) for i=1:ng]
-        post=[[[begin
-            ls = log.(tranprob[k][ind][:,orig[tafter][k][ind]])
-            ls += fwlogpost[t][k][g,ind]
-            w=logsumexp(ls)
-            push!(weight[g],w)
-            exp.(ls .- w)
-        end for ind=1:length(tranprob[k])] for k=1:length(tranprob)] for g=1:ng]
-        pphase = sum.(weight) + fwlogpgeno[t]
-        pphase = exp.(pphase .- logsumexp(pphase))
-        # phase[t]=rand(findall(pphase .== max(pphase...)))
-        phase[t]=rand(Categorical(pphase))
-        orig[t]=[[rand(Categorical(i)) for i=j] for j=post[phase[t]]]
-    end
-    phase,orig
-end
-
-function normalizelogl(logllist)
-    # logllist is a list of list of logl for all possible pairing
-    # (bivalent and multi-vavelent)for all offspring
-    # equally probable for each of 9 or 16 the chromosome pairing
-    # prior(V_0|H)=1/9 for bvModel, or 1/16 for fullModel for tetraploid
-    logllist = [i .- log(length(i)) for i=logllist]
-    siblogl=[logsumexp(i) for i=logllist]
-    problist = [exp.(logllist[i] .- siblogl[i]) for i=1:length(logllist)]
-    problist, siblogl
-end
-
-function normfwpost(sitelogpost::AbstractVector,weight::AbstractVector)
-    logpost=reduce(hcat,sitelogpost)
-    sibscale=logsumexp.(logpost)
-    # cal logpgeno
-    logpgeno=sum(sibscale,dims=2)[:,1]
-    logpgeno .+= log.(weight)
-    logpgeno .-= logsumexp(logpgeno)
-    phaseset = findall(logpgeno .- max(logpgeno...) .> log(10^(-10.)))
-    logpgeno = logpgeno[phaseset]
-    # up sitelogpost
-    map!((x,y)->x .- y ,logpost,logpost,sibscale)
-    ls=size.(sitelogpost,2)
-    pushfirst!(ls,0)
-    cumsum!(ls,ls)
-    sitelogpost = [logpost[phaseset,ls[i]+1:ls[i+1]] for i=1:length(ls)-1]
-    sitelogpost, logpgeno, phaseset
+function index2haplo(phaploset::AbstractVector,haploindex::AbstractVector)
+    [reduce(hcat,map((x,y)->ismissing(y) ? missings(length(x[1])) : x[y],
+        phaploset[i],haploindex[i]))' for i=eachindex(phaploset)]
 end
 
 
-
-function getbvdict(findex,bvpair::AbstractVector,
-    priorspace::AbstractDict,polygeno::PolyGeno)
-    popidls=popfromfindex(findex,polygeno)
-    # using ordereddict so that keys(bvdict) = popidls
-    # the ordering will be the same as startprob and transtionprob
-    OrderedDict([begin
-        offls = findall(polygeno.offspringinfo[!,:population] .== popid)
-        bvkeys = priorspace[popid]["valentkey"][bvpair[offls]]
-        popid => (offls,bvkeys)
-    end for popid = popidls])
-end

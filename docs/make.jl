@@ -6,47 +6,42 @@ try
 catch
     using Pkg
     Pkg.develop(PackageSpec(path = abspath(@__DIR__,"..")))
-    # Pkg.instantiate()
+    Pkg.instantiate()
 end
 
 
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
 isdir(joinpath(@__DIR__,"build")) && error("delete old build!")
 
-
 makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
-    sitename="PolyOrigin.jl",    
-    # repo =  Documenter.Remotes.GitHub("chaozhi", "PolyOrigin.jl"),    
-    repo = "https://github.com/chaozhi/PolyOrigin.jl",
-    # remotes = nothing,
+    sitename="PolyOrigin.jl",
+    repo =  Documenter.Remotes.GitHub("chaozhi", "PolyOrigin.jl"),        
     format=Documenter.HTML(;
-        # prettyurls=get(ENV, "CI", nothing) == "true",
-        prettyurls=true, # false for local browsing        
-        canonical="https://chaozhi.github.io/PolyOrigin.jl",      
-        repolink = "https://github.com/chaozhi/PolyOrigin.jl",  
+        prettyurls=get(ENV, "CI", "false") == "true",
+        # prettyurls=false, # false for local manual
+        canonical="https://chaozhi.github.io/PolyOrigin.jl",
+        collapselevel = 1, 
     ),
+    checkdocs = :none, 
     pages = [
         "Home" => "index.md", "Manual" => Any[
             "0 Get started" => "man/0_get_started.md",
             "1 Prepare input" => "man/1_prepare_input.md",
-            "2 Run polyOrigin" => "man/2_run_polyOrigin.md",
+            "2 Run polyOrigin" => "man/2_run_polyorigin.md",
             "3 Understand output" => "man/3_understand_output.md",
-            "4 Examples" => "man/4_examples.md",
+            # "4 Examples" => "man/4_examples.md",
         ],
-        "Library" => Any[
-            "Public" => "lib/public.md",
-            "Internals" => "lib/internals.md",
-        ],
-        "Index" => "symbols.md",
+        # "Library" => Any[
+        #     "Public" => "lib/public.md",
+        # ],
+        # "Index" => "symbols.md",
     ]
 )
 
 deploydocs(;
-    repo="github.com/chaozhi/PolyOrigin.jl.git",           
-    devbranch = "main" 
+    repo="github.com/chaozhi/PolyOrigin.jl.git",
+    devbranch = "main",
 )
 
-
-# cd(@__DIR__)

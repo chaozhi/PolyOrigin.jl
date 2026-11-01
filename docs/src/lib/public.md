@@ -20,16 +20,15 @@ Pages = ["public.md"]
 
 ```@docs
 PolyOrigin
+PolyPed
 PolyGeno
 PolyAncestry
-polyOrigin
-polyOrigin!
-readPolyGeno
-readPolyAncestry
-savePolyAncestry
-plotMapComp
-plotCondprob
-animCondprob
-readTruegeno!
-calAccuracy!
+polyorigin
+polyorigin!
+formpolygeno
+readpolyancestry
+savepolyancestry
+plotcondprob
+animcondprob
+calaccuracy!
 ```

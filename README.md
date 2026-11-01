@@ -1,27 +1,18 @@
 # PolyOrigin.jl
 
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://chaozhi.github.io/PolyOrigin.jl/dev)
-[![Build Status](https://github.com/chaozhi/PolyOrigin.jl/workflows/CI/badge.svg)](https://github.com/chaozhi/PolyOrigin.jl/actions)
-[![Coverage](https://codecov.io/gh/chaozhi/PolyOrigin.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/chaozhi/PolyOrigin.jl)
-
-A package for haplotype reconstruction in connected polyploid F1 populations
-
-See [PolyOriginCmd](https://github.com/chaozhi/PolyOriginCmd) for running PolyOrigin in command line interface
-
-See [PolyOriginR](https://github.com/chaozhi/PolyOriginR) for running PolyOrigin in R
+A package for haplotype reconstruction in multigenerational diploid and polyploid pedigrees.
 
 
 ## Features
 
-- Apply to connected polyploid (2x, 4x, or 6x) F1 crosses
+- Apply to multi-generation pedigrees, including connected F1 populations
 - Apply to SNP array and GBS data
-- Robust to dosage errors in SNP array data
-- Robust to dosage uncertainties in low read depth GBS data
-- Robust to errors in input genetic or physical map
+- Account for preferential chromosome pairing and quadrivalent formation in polyploid
+- Account for allelic bias and overdispersion in GBS data
 
 ## Installation
 
-From the julia (>v1.10.0, 64-bit) REPL mode, run
+From the julia (>=v1.12, 64-bit) REPL mode, run
 
 ```
 julia>]add https://github.com/chaozhi/PolyOrigin.jl
@@ -33,14 +24,6 @@ To update the package, run
 ```
 julia>]up PolyOrigin
 ```
-
-## Vignettes
-
-[Haplotype reconstruction in a simulated tetraploid population from SNP array data](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_simarray/step3_tetraploid_simarray.md)
-
-[Haplotype reconstruction in a simulated tetraploid population from GBS data](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_simgbs/step2_tetraploid_simgbs.md)
-
-[Haplotype reconstruction in a real 3x3 half-diallel potato population](https://github.com/chaozhi/PolyOrigin_Examples/tree/master/tetraploid_realpotato/tetraploid_realpotato.md)
 
 ## Usage
 
@@ -55,9 +38,12 @@ List the names (types, functions, etc) exported by the package
 ```
 julia>names(PolyOrigin)
 ```
-To get help on a name, type `?` and the name, e.g. polyOrigin
+To get help on a name, type `?` and the name, e.g. polyorigin
 ```
-julia>?polyOrigin
+julia>?polyorigin
+
+julia>?polyorigin!
+
 ```
 
 # Output files
@@ -65,22 +51,21 @@ julia>?polyOrigin
 Output file | Description
 ------------- |----------------
 `outstem.log`  |  log file
-`outstem_maprefined.csv` |  same as input genofile except that marker map being refined
-`outstem_parentphased.csv` |  same as input genofile except that  parents being phased
-`outstem_parentphased_corrected.csv` |  exported if there exist detected parental errors
-`outstem_polyancestry.csv` | genoprob and others (e.g. valent configurations)
-`outstem_genoprob.csv` |  posterior genotype probabilities for all offspring
-`outstem_postdoseprob.csv` |  posterior dosage probabilities for all offspring
-`outstem_plots` |  a folder contains plots of condprob for all offspring if isplot = true
-
+`outstem_maprefined.vcf.gz` |  same as input genofile except that parents are phased and marker map is refined
+`outstem_imputed.vcf.gz`| same as the above genofile except that offspring are imputed
+`outstem_phased.vcf.gz` |  same as the above genofile except that offspring are phased
+`outstem_polyancestry.csv.gz` | saves polyancestry.
+`outstem_joinedpolyancestry.csv.gz` | saves polyancestry with joined state space.
+`outstem_plots.tar` |  a folder contains all figures if isplot = true
+`outstem_chrpairing.csv` | summary of the inference results on chromosomal pairing. 
 
 ## Example
 ```
-julia> polyOrigin("geno.csv","ped.csv")
+julia> polyorigin("geno.vcf.gz","ped.csv")
 ```
 
 ## Citing PolyOrigin
 
- If you use PolyOrigin in your analyses and publish your results, please cite the article:
+ If you use PolyOrigin2 in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Amadeu RR, Munoz PR, and Endelman JB. 2021. Haplotype reconstruction in connected tetraploid F1 populations. https://doi.org/10.1093/genetics/iyab106
+  *Zheng C, Resende MFR, Munoz PR, and Endelman JB. 2026. Haplotype reconstruction in multi-generational diploid and tetraploid populations. 

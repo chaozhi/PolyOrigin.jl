@@ -1,64 +1,397 @@
-# """
-#     parentCorrect!(polygeno::PolyGeno, polyancestry::PolyAncestry,keyargs...)
-#
-# performs parental genotype correction and return a dataframe
-# listing of error corrections.
-#
-# # Positional arguments
-#
-# `polygeno::PolyGeno`: a struct that stores genotypic data and pedigree info.
-#
-# `chr::Integer`: chromosome index
-#
-# `chrgenoprob::AbstractVector`: ancestral probabilities for each offspring
-# at chr-th chromsome
-#
-# `priorspace::AbstractDict`: state space for each subpopulation.
-#
-# `polyancestry::PolyAncestry`: a struct that stores results of ancestral inference.
-#
-# # Keyword arguments
-#
-# `correctthreshold::AbstractFloat=0.15`: a candidate marker is selected for
-# parental error correction if the fraction of offspring genotypic error >= correctthreshold.
-#
-# """
-function parentCorrect!(phasedgeno::PolyGeno,chr::Integer,
-    chrgenoprob::AbstractVector,priorspace::AbstractDict;
-    correctthreshold::AbstractFloat=0.15)
-    # correctthreshold: fraction of offspring genotypes being incosistent
-    # with  estimated parental phased genotypes
-    if correctthreshold<1.0
-        callthreshold=0.5
-        chrdoseprob = calchrdoseprob(chrgenoprob,phasedgeno.parentgeno[chr],
-            phasedgeno.offspringinfo,phasedgeno.designinfo,priorspace)
-        chrcalldose = getchrcalldose(chrdoseprob,callthreshold=callthreshold)
-        chrbadsnp = getchrbadsnp(phasedgeno,chr,chrcalldose,correctthreshold)
-        # ["marker", "chromosome","parent", "old_genotype", "new_genotype","old_nerr", "new_nerr"]
-        changedf = getchrbadchange!(chrgenoprob,chrbadsnp,priorspace,
-            phasedgeno,chr,callthreshold=callthreshold)
-    else
-        res=[["marker", "chromosome", "parent", "old_genotype", "new_genotype",
-            "old_nerr", "new_nerr"]]
-        res2=permutedims(reduce(hcat,res))
-        changedf = DataFrame(res2[2:end,:],Symbol.(res2[1,:]))
+
+function parentcorrect!(phaploindex::AbstractVector,    
+    phaploset::AbstractVector,
+    phaploweight::AbstractVector,            
+    phaploposterior::AbstractVector, 
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector, 
+    chrmultiallele::AbstractVector,    
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict, 
+    polyped::PolyPed;         
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},    
+    overdispersion::Union{Real,AbstractVector},
+    snporder::Union{Nothing,AbstractVector}=nothing,            
+    bvpair::Union{Nothing, NamedTuple}=nothing, 
+    correctthreshold::Real=0.1, 
+    callthreshold::Real=0.7,
+    minerrdiff::Integer=3,
+    alwayscorrect::Bool=false)
+    isnothing(snporder) && (snporder = 1:size(chroffgeno,1))    
+    chrphaplo = get_phaplo(phaploindex, phaploset)    
+    # badchanges: ["markerindex", "parentindex","weight", "new_nerr","new_genotype", "old_nerr", "old_genotype"]    
+    deltlogl, badchanges = parentcorrect(chrphaplo, chroffgeno, chroffformat, chrmultiallele, 
+        priorspace, priorprocess, polyped; 
+        phaseerror_midparent, doseerror, baseerror, allelicbias, overdispersion, snporder,  bvpair, 
+        callthreshold, minerrdiff, correctthreshold,alwayscorrect
+    )          
+    isempty(badchanges) && return (0, badchanges)
+    logl_parentdata = sum(cal_logl_parentdata(phaploindex, phaploweight))
+    # 
+    newphaploindex = deepcopy(phaploindex)    
+    newphaploset = deepcopy(phaploset)    
+    newphaploweight = deepcopy(phaploweight)    
+    newphaploposterior = deepcopy(phaploposterior)    
+    for row in eachrow(badchanges) 
+        marker, p, newg_str = row[[:markerindex,:parentindex,:new_genotype]]
+        newg = parse.(Int,split(newg_str,"|"))
+        hh = newphaploset[p][marker]
+        ww = newphaploweight[p][marker]
+        pp = newphaploposterior[p][marker]
+        hindex = findfirst(==(newg),hh)        
+        if isnothing(hindex)
+            # println("parentcorrect: newg=",newg,", hh=",hh, ",ww=",ww)
+            push!(hh,newg)
+            push!(ww, maximum(ww))
+            push!(pp, maximum(pp))
+            ww .= 1/length(ww) 
+            pp .= 1/length(pp) 
+            newphaploindex[p][marker] = length(hh)
+        else
+            newphaploindex[p][marker] = hindex
+            # ww .= 1/length(ww)                 
+        end        
+    end    
+    deltlogprior = sum(cal_logl_parentdata(newphaploindex, newphaploweight)) - logl_parentdata
+    # @info "" deltlogl deltlogprior badchanges    
+    deltlogp = deltlogl + deltlogprior         
+    if deltlogp > 0 
+        phaploindex .= newphaploindex                
+        phaploset .= newphaploset                
+        phaploweight .= newphaploweight                
+        phaploposterior .= newphaploposterior                
     end
+    (deltlogp, badchanges)
+end
+
+function parentcorrect(chrphaplo::AbstractMatrix,chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector, chrmultiallele::AbstractVector,    
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict, 
+    polyped::PolyPed;         
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},    
+    overdispersion::Union{Real,AbstractVector},
+    snporder::Union{Nothing,AbstractVector}=nothing,        
+    bvpair::Union{Nothing, NamedTuple}=nothing,     
+    correctthreshold::Real=0.1, 
+    callthreshold::Real=0.7,
+    minerrdiff::Integer=3,
+    alwayscorrect::Bool=false)
+    isnothing(snporder) && (snporder =1:size(chroffgeno,1))    
+    derivedgeno = get_derivedgeno(chrphaplo,chrmultiallele, priorspace)    
+    if isnothing(bvpair)        
+        bvpairprop = get_prop_bvpair(priorspace,polyped)
+    else        
+        bvpairprop = (offspring = [[i] for i in bvpair.offspring], parent = [[i] for i in bvpair.parent])
+    end
+    # offspring decoding
+    dict2group = getdict2group(priorspace, polyped)    
+    chrdecode = chrhmmdecode(chroffgeno, derivedgeno,priorspace, priorprocess, 
+        polyped, chroffformat, chrmultiallele; dict2group, bvpairprop,
+        doseerror, baseerror, allelicbias, overdispersion, isinclviterbi = false, 
+        ismidparent =false, isparallelind=false, jltempdir="",verbose=false)  # jltempdir is not used for non-parallel    
+    # midparent decoding
+    chrpformat = ["GT_phased" for _ in eachindex(chroffformat)]
+    chrdecode_midparent = chrhmmdecode(chrphaplo, derivedgeno,priorspace, priorprocess, 
+        polyped, chrpformat, chrmultiallele; dict2group, bvpairprop,
+        doseerror, baseerror, allelicbias, overdispersion, isinclviterbi = false, 
+        ismidparent = true, isparallelind=false, jltempdir="",verbose=false)  # jltempdir is not used for non-parallel    
+    # parental correction
+    offploidyls = polyped.offspringinfo[!,:ploidy]
+    chrcalledgeno = get_chrcalledgeno(chroffgeno, chroffformat, offploidyls; 
+        doseerror, baseerror, allelicbias, overdispersion, callthreshold) 
+    changedf = parentcorrect_decode(chrdecode, chrphaplo, chrcalledgeno, chrmultiallele, 
+        priorspace, priorprocess, polyped;
+        snporder, correctthreshold, callthreshold, minerrdiff
+    )        
+    changedf = reduce(vcat,[df[[rand(1:size(df,1))],:] for df in groupby(changedf,:markerindex)])
+    isempty(changedf) && return (0, changedf)        
+    alwayscorrect && return (0, changedf)
+
+    # calculate logl before parent correction 
+    logl_decode_off= sum(logsumexp(i[1][:,2]) for i in chrdecode)    
+    logl_decode_midparent= sum(isnothing(i) ? 0 : logsumexp(i[1][:,2]) for i in chrdecode_midparent)
+    logl_old = logl_decode_off + logl_decode_midparent
+   
+    # calculate logl after parent correction
+    newchrphaplo = copy.(chrphaplo)
+    correct_chrphalo!(newchrphaplo, changedf)    
+    newderivedgeno = get_derivedgeno(newchrphaplo,chrmultiallele, priorspace)    
+    if isnothing(bvpair)        
+        loglls = calmarglogl_bvpairprop(newchrphaplo, chroffgeno,chroffformat, chrmultiallele, newderivedgeno, 
+            priorspace, priorprocess, bvpairprop, polyped; 
+            phaseerror_midparent, doseerror, baseerror, allelicbias, overdispersion, snporder)    
+        logl = sum(sum(ismissing(j) ? 0 : logsumexp(j) for j in i) for i in loglls)            
+    else
+        loglls = calmarglogl_bvpair(newchrphaplo, chroffgeno,chroffformat, chrmultiallele, newderivedgeno, 
+            priorspace, priorprocess, bvpair, polyped; 
+            phaseerror_midparent, doseerror, baseerror, allelicbias, overdispersion, snporder)       
+        logl = sum_margloglls(loglls)
+    end    
+    deltlogl = logl - logl_old
+    deltlogl, changedf
+end    
+
+function correct_chrphalo!(chrphaplo::AbstractMatrix, changedf::AbstractDataFrame)
+    for row = eachrow(changedf) 
+        marker, p, newg = row[[:markerindex,:parentindex,:new_genotype]]
+        newg2 = parse.(Int8,split(newg,"|"))
+        chrphaplo[marker, p] = newg2 # Do NOT use .=newg2, otherwise it would change pointing to  phaploset
+    end
+    nothing
+end
+
+function get_chrcalledgeno(chroffgeno::AbstractMatrix, 
+    chroffformat::AbstractVector, offploidyls::AbstractVector;    
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},    
+    overdispersion::Union{Real,AbstractVector},
+    callthreshold::Real=0.7) 
+    res = copy(chroffgeno)
+    markerls = findall(chroffformat .== "AD")
+    if !isempty(markerls)
+        b = [isa(i,Real) for i in [doseerror, baseerror,allelicbias]]
+        if all(b)
+            for j in eachindex(offploidyls)
+                res[markerls,j] .= genocall_AD.(res[markerls,j], offploidyls[j]; 
+                    doseerror, baseerror, allelicbias,callthreshold)
+            end
+        else
+            nmarker = size(chroffgeno,1)            
+            doseerrorls = isa(doseerror,Real) ? doseerror .* ones(nmarker) : doseerror
+            baseerrorls = isa(baseerror,Real) ? baseerror .* ones(nmarker) : baseerror
+            allelicbiasls = isa(allelicbias,Real) ? allelicbias .* ones(nmarker) : allelicbias
+            overdispersionls = isa(overdispersion,Real) ? overdispersion .* ones(nmarker) : overdispersion
+            for j in eachindex(offploidyls)
+                for m in markerls
+                    res[m,j] = genocall_AD(res[m,j], offploidyls[j];                         
+                        doseerror = doseerrorls[m], baseerror = baseerrorls[m], 
+                        allelicbias = allelicbiasls[m], overdispersion = overdispersionls[m],callthreshold)
+                end
+            end
+        end
+    end
+    res
+end
+
+function parentcorrect_decode(chrdecode::AbstractVector, 
+    chrphaplo::AbstractMatrix,
+    chrcalledgeno::AbstractMatrix,    
+    chrmultiallele::AbstractVector, 
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict, 
+    polyped::PolyPed;             
+    snporder::Union{Nothing,AbstractVector}=nothing,        
+    correctthreshold::Real=0.1,         
+    callthreshold::Real=0.7,
+    minerrdiff::Integer=3)
+    # changedf: ["markerindex", "parentindex","weight", "new_nerr","new_genotype", "old_nerr", "old_genotype"]
+    isnothing(snporder) && (snporder =1:size(chrcalledgeno,1))    
+    doseprob = cal_condprob2doseprob(chrdecode, chrphaplo, priorspace,priorprocess;  snporder)
+    bestdose = cal_doseprob2calldose(doseprob; callthreshold)
+    badmarkers = get_badmarkers(chrcalledgeno,bestdose, priorspace,polyped; correctthreshold)        
+    changedf = get_badchanges!(chrdecode, badmarkers, 
+        chrphaplo, chrcalledgeno, chrmultiallele, priorspace,priorprocess, polyped; 
+        minerrdiff, callthreshold,snporder)                
     changedf
 end
 
-function offspringCall(phasedgeno::PolyGeno,chr::Integer,
-    chrgenoprob::AbstractVector,priorspace::AbstractDict;
-    callthreshold::AbstractFloat=0.5)
-    chrdoseprob = calchrdoseprob(chrgenoprob,phasedgeno.parentgeno[chr],
-        phasedgeno.offspringinfo,phasedgeno.designinfo,priorspace)
-    chrcalldose = getchrcalldose(chrdoseprob,callthreshold=callthreshold)
-    chrcalldose
+
+function unphasedcalling(unphasedprob::Union{Missing,AbstractVector}; callthreshold::Real=0.7)
+    ismissing(unphasedprob) && return  missing
+    maxp, index = findmax(unphasedprob)
+    maxp >= callthreshold ? index : missing        
 end
 
+function cal_doseprob2calldose(doseprob::AbstractMatrix; callthreshold::Real=0.7)
+    unphasedcalling.(doseprob; callthreshold)    
+end
+
+
+function get_badmarkers(chrcalledgeno::AbstractMatrix, 
+    bestdose::AbstractMatrix, 
+    priorspace::AbstractDict, 
+    polyped; 
+    correctthreshold::Real=0.1)
+    dosemismatch = map((x,y)->ismissing(x) || ismissing(y) ? missing : x!=y,chrcalledgeno,bestdose)            
+    # mismatchrates = [mean(skipmissing(i)) for i in eachrow(dosemismatch)]
+    # mismatch_markers =  findall(mismatchrates .> 0.1)
+    nparent = size(polyped.parentinfo,1)
+    res=[]
+    for popid = keys(priorspace)
+        poppriorspace = priorspace[popid]        
+        offls = poppriorspace["offspringindex"]
+        popmismatch = dosemismatch[:,offls]
+        popmismatch2=[collect(skipmissing(i)) for i= eachrow(popmismatch)]
+        nlen=length.(popmismatch2)
+        nerr = [isempty(i) ? 0 : sum(i) for i=popmismatch2]
+        # nerr = sum.(popmismatch2)
+        pos = findall(nerr .>= 1)
+        snps = pos
+        keepat!(nerr, pos)
+        keepat!(nlen, pos)
+        pp = zeros(Int, nparent)
+        pp[poppriorspace["parentindex"]] .= 1
+        # println("popid=",popid,", pls=",poppriorspace["parentindex"])
+        for i in eachindex(snps, nerr, nlen)        
+            push!(res,[snps[i], nerr[i]*pp,nlen[i]*pp])
+        end
+    end
+    # ArgumentError: reducing over an empty collection is not allowed    
+    if isempty(res)
+        res
+    else
+        res2=permutedims(reduce(hcat, res)) 
+        res3=sortsplit(res2,1)
+        # return res[i]: snp_index, nerr, nobs
+        res4 = []
+        for i in res3
+            sumerr = sum(i[:,2])
+            sumobs = sum(i[:,3])
+            errrates =sumerr ./ sumobs            
+            errrates[isnan.(errrates)] .= -1.0
+            if maximum(errrates) >= correctthreshold
+                push!(res4, [i[1,1], errrates, sumerr,sumobs])
+            end
+        end        
+        res4
+    end    
+end
+
+
+function get_phaplo_missp(chrphaplo::AbstractMatrix, chrmultiallele::AbstractVector, 
+    priorspace::AbstractDict, polyped::PolyPed,p::Integer,snp::Integer)
+    # hhset, a list of all possible phased genotypes for parent p witn ploidy n
+    # fhaplodict, a dict for each subpopulation, all haplotype of two-parents at chr/snp
+    ploidy=polyped.parentinfo[p,:ploidy]
+    nallele = chrmultiallele[snp]
+    hhset = get_phased_codeset(ploidy, nallele)
+    fhaplodict=Dict([begin    
+        parents = priorspace[popid]["parentindex"]
+        if p  in parents
+            hhset2=repeat(Vector{Int8}.(permutedims(chrphaplo[snp,:])),length(hhset))
+            hhset2[:,p] .= hhset            
+            hhset3=hhset2[:,parents]
+            hhset4=reduce(hcat,[vcat(i...) for i=eachrow(hhset3)])'
+            popid=>hhset4
+        else
+            popid=>[]
+        end
+    end for popid = keys(priorspace)])
+    hhset, fhaplodict
+end
+
+function get_estdose_missp(resdecode::AbstractVector, 
+    chrphaplo::AbstractMatrix, 
+    chrmultiallele::AbstractVector, 
+    priorspace::AbstractDict, 
+    priorprocess::AbstractDict, 
+    polyped::PolyPed,
+    p::Integer,snp::Integer; 
+    callthreshold::Real,
+    snporder::AbstractVector)
+    #  return hhset,offls,estdose
+    # hhset, a list of all H possible phased genotypes for parent p witn ploidy n
+    # offls is a list of offspring indices whose parent is p
+    # estdose matrix with size: H x length(offls)
+    hhset, fhaplodict = get_phaplo_missp(chrphaplo, chrmultiallele, priorspace, polyped, p, snp)
+    noff = size(polyped.offspringinfo,1)
+    res=Vector{Any}(missing,noff)    
+    markerincl = first(values(priorprocess)).markerincl # markerincl is the same for all popid
+    markerindices = snporder[markerincl]
+    t = findfirst(markerindices .== snp)
+    for popid in keys(priorspace)
+        fhaplo=fhaplodict[popid]
+        isempty(fhaplo) && continue
+        groupstates = priorspace[popid]["groupstate"]
+        offls = priorspace[popid]["offspringindex"]
+        ploidy = priorspace[popid]["offspringploidy"]        
+        nunphased = get_nunphased(ploidy, chrmultiallele[snp])
+        nhaplo = size(fhaplo,1)
+        for off=offls            
+            genoprob = last(resdecode[off])
+            I,V = findnz(genoprob[t,:])
+            prob = [zeros(nunphased) for _ in 1:nhaplo]
+            for i in eachindex(I, V)
+                d = unphased_genocode_2_index.(eachrow(fhaplo[:,groupstates[I[i]]]))
+                for j in 1:nhaplo
+                    prob[j][d[j]]  += V[i]
+                end
+            end
+            res[off] = unphasedcalling.(prob; callthreshold)    
+        end
+    end    
+    offls = findall(.!ismissing.(res))
+    estdose = res[offls]
+    estdose2 = collect(eachrow(reduce(hcat,estdose)))
+    hhset,offls,estdose2
+end
+
+function get_badchanges!(resdecode::AbstractVector, badmarkers::AbstractVector,    
+    chrphaplo::AbstractMatrix, 
+    chrcalledgeno::AbstractMatrix, 
+    chrmultiallele::AbstractVector, 
+    priorspace::AbstractDict, 
+    prorprocess::AbstractDict, 
+    polyped::PolyPed; 
+    minerrdiff::Integer=3, 
+    callthreshold::Real=0.7,
+    snporder::AbstractVector)    
+    res = []
+    for m= eachindex(badmarkers)
+        snp, ww = badmarkers[m][1:2] # snp_index, mismatch_rate, nerr, nobs        
+        any(ww .> 0) || continue        
+        pp = findall(ww .≈ maximum(ww))  
+        # pp = sortperm(ww,rev=true)
+        # pp =  pp[ww[pp] .> 0]        
+        while true
+            subres=[]
+            for p=pp
+                hhset, offls, estdose = get_estdose_missp(resdecode, chrphaplo, chrmultiallele, 
+                    priorspace, prorprocess, polyped,p,snp;  callthreshold,snporder)
+                obs=chrcalledgeno[snp,offls]
+                mismatch = [map((x,y)->ismissing(x) || ismissing(y) ? missing : x != y, obs, i) for i= estdose]
+                nerr = [all(ismissing.(i)) ? 0 : sum(skipmissing(i)) for i in mismatch]                    
+                newerr,newindex = findmin(nerr)
+                oldg = chrphaplo[snp,p]
+                oldindex = findfirst([i == oldg for i=hhset])
+                olderr = nerr[oldindex]                
+                if olderr - newerr >= minerrdiff
+                    newg = hhset[newindex]                    
+                    push!(subres,[snp,p,ww[p], newerr,join(newg,"|"),olderr,join(oldg,"|")])
+                end
+            end
+            if isempty(subres)
+                break
+            else
+                ndiff = [i[6]-i[4] for i=subres]
+                ii = argmax(ndiff)
+                push!(res,subres[ii])
+                snp,p,newg=subres[ii][[1,2,5]]                
+                setdiff!(pp, [p])
+                isempty(pp) && break
+            end
+        end
+    end
+    pushfirst!(res,["markerindex", "parentindex","weight", "new_nerr","new_genotype", "old_nerr", "old_genotype"])
+    res2=permutedims(reduce(hcat,res))    
+    df=DataFrame(res2[2:end,:],res2[1,:])
+    df
+end
+
+
 function getchangesum(changedf::DataFrame)
+    # changedf: ["markerindex", "parentindex","weight", "new_nerr","new_genotype", "old_nerr", "old_genotype"]
     res=[]
     for m=1:size(changedf,1)
-        oldphase, newphase, oldnerr,  newnerr = Vector(changedf[m,4:end])
+        oldphase, newphase, oldnerr,  newnerr = changedf[m,["old_genotype","new_genotype","old_nerr","new_nerr"]]
         newphase2 = parse.(Int,split(newphase,"|"))
         oldphase2 = parse.(Int,split(oldphase,"|"))
         nerrdiff = oldnerr - newnerr
@@ -72,19 +405,11 @@ function getchangesum(changedf::DataFrame)
     (ndosediff=ndosediff,nphasediff=nphasediff,nalleleflip=nalleleflip,nerrdiff=nerrdiff)
 end
 
-function getchrfhaplo(desinfo::DataFrame,chrparentgeno::AbstractMatrix)
-    Dict([begin
-        popid=desinfo[i,1]
-        hh=chrparentgeno[:,Vector(desinfo[i,2:end]) .> 0]
-        popid=>reduce(hcat,[vcat(i...) for i=eachrow(hh)])'
-    end for i=1:size(desinfo,1)])
-end
-
-function calchrdoseprob(chrgenoprob::AbstractVector,chrparentgeno::AbstractMatrix,
-    offinfo::DataFrame,desinfo::DataFrame,priorspace::AbstractDict)
-    chrfhaplo=getchrfhaplo(desinfo,chrparentgeno)
+function calchroffgenoprob(chrgenoprob::AbstractVector,chrphaplo::AbstractMatrix,
+    offinfo::DataFrame,priorspace::AbstractDict)    
+    chrfhaplo= get_phaplo(chrphaplo)
     offploidy=offinfo[!,:ploidy]
-    offpop=offinfo[!,:population]
+    offpop=offinfo[!,:family]
     nind = length(offpop)
     nsnp = size(chrgenoprob[1],1)
     doseprob= Matrix{Vector{Float64}}(undef,nind,nsnp)
@@ -107,188 +432,4 @@ function calchrdoseprob(chrgenoprob::AbstractVector,chrparentgeno::AbstractMatri
         end for off=offls,m=1:nsnp]
     end
     permutedims(doseprob)
-end
-
-function getchrcalldose(chrdoseprob::AbstractMatrix;callthreshold::AbstractFloat=0.5)
-    [begin
-        val,index=findmax(i)
-        val> callthreshold ? index-1 : missing
-    end for i=chrdoseprob]
-end
-
-function gbserrorscore(x::AbstractVector,y::Integer)
-    # x[y+1] ≤ 0.05
-    x[y+1] ≤ 0.05 ? 1-x[y+1] : 0.0
-end
-
-function getchrbadsnp(phasedgeno::PolyGeno, chr::Integer,
-    chrcalldose::AbstractMatrix,
-    correctthreshold::AbstractFloat)
-    chroffgeno = phasedgeno.offspringgeno[chr]
-    bestdose = chrcalldose
-    kind = kindofgeno([chroffgeno])
-    nch = length(chroffgeno)
-    if kind=="dosage"
-        dosemismatch = map((x,y)->ismissing(x) || ismissing(y) ? missing : x!=y,chroffgeno,bestdose)
-    elseif kind=="probability"
-        # replace 0.05 with 10*seqerr? but the dose probability may also be calculated from SNP array data
-        dosemismatch= map((x,y)->ismissing(y) ? missing : gbserrorscore(x,y),chroffgeno,bestdose)
-    else
-        @error string("unknown offspring data type: ",kind)
-    end
-    popparent = Dict([i[1]=>Int.(i[2:end].>0) for i=eachrow(Matrix(phasedgeno.designinfo))])
-    offpop=phasedgeno.offspringinfo[!,:population]
-    res=[]
-    for popid = unique(offpop)
-        offls = offpop .== popid
-        popmismatch = dosemismatch[:,offls]
-        popmismatch2=[collect(skipmissing(i)) for i= eachrow(popmismatch)]
-        nlen=length.(popmismatch2)
-        nerr = [isempty(i) ? 0 : sum(i) for i=popmismatch2]
-        # nerr = sum.(popmismatch2)
-        pos = findall(nerr .>= 3)
-        ww = nerr[pos] ./ nlen[pos]
-        bool = ww .> correctthreshold
-        snps = pos[bool]
-        ww = ww[bool]
-        pp= popparent[popid]
-        for i=1:length(ww)
-            push!(res,[chr,snps[i], ww[i]*pp])
-        end
-    end
-    # ArgumentError: reducing over an empty collection is not allowed
-    res2=permutedims(hcat(res...))
-    if isempty(res2)
-        Matrix(undef,0,0)
-    else
-        res3=sortsplit(res2,2)
-        res4=[[i[1,1],i[1,2],sum(i[:,3])] for i=res3]
-        # return matrix with cols: ch_index, snp_index, parent_weights
-        permutedims(reduce(hcat,res4))
-    end
-end
-
-function getfhaplomissp(phasedgeno::PolyGeno,p::Integer,chr::Integer,snp::Integer)
-    # hhset, a vector of length 2^n, includes all possible phased genotypes of parent p witn ploidy n
-    # fhaplodict, a dict for each subpopulation, all haplotype of two-parents at chr/snp
-    chrparentgeno=phasedgeno.parentgeno[chr]
-    popparent = Dict([i[1]=>findall(i[2:end].>0) for i=eachrow(Matrix(phasedgeno.designinfo))])
-    ploidyls=phasedgeno.parentinfo[!,:ploidy]
-    hhset=getdoserule(ploidyls[p])[missing]
-    fhaplodict=Dict([begin
-        parents = popparent[popid]
-        if p  in parents
-            hhset2=repeat(permutedims(chrparentgeno[snp,:]),length(hhset))
-            hhset2[:,p ] = hhset
-            hhset3=hhset2[:,parents]
-            hhset4=reduce(hcat,[vcat(i...) for i=eachrow(hhset3)])'
-            popid=>hhset4
-        else
-            popid=>[]
-        end
-    end for popid = keys(popparent)])
-    hhset, fhaplodict
-end
-
-function getdosemissp(chrgenoprob::AbstractVector,priorspace::AbstractDict,
-    phasedgeno::PolyGeno,p::Integer,ch::Integer,snp::Integer;
-    callthreshold::AbstractFloat=0.5)
-    # return hhset,offls,estdose
-    # hhset, a vector of length 2^n, includes all possible phased genotypes of parent p witn ploidy n
-    # offls is a list of offspring indices whose parent is p
-    # estdose matrix with size: 2^n x length(offls)
-    offploidy=phasedgeno.offspringinfo[!,:ploidy]
-    offpop=phasedgeno.offspringinfo[!,:population]
-    nind = length(offpop)
-    hhset, fhaplodict = getfhaplomissp(phasedgeno,p,ch,snp)
-    res=Vector{Any}(missing,nind)
-    for popid=keys(fhaplodict)
-        fhaplo=fhaplodict[popid]
-        isempty(fhaplo) && continue
-        fhaplo =fhaplo .- 1
-        states = priorspace[popid]["groupstate"]
-        offls=findall(offpop .== popid)
-        for off=offls
-            I,V = findnz(chrgenoprob[off][snp,:])
-            d=[sum(fhaplo[:,i],dims=2) for i=states[I]]
-            dd=reduce(hcat,d)
-            prob = zeros(size(dd,1),offploidy[off]+1)
-            for i=1:size(dd,1),j=1:size(dd,2)
-                prob[i,dd[i,j]+1] += V[j]
-            end
-            res[off]=[begin
-                val,ind = findmax(i)
-                val > callthreshold ? ind-1 : missing
-            end for i=eachrow(prob)]
-        end
-    end
-    offls = findall(.!ismissing.(res))
-    estdose = reduce(hcat,res[offls])
-    hhset,offls,estdose
-end
-
-function getchrbadchange!(chrgenoprob::AbstractVector,chrbadsnp::AbstractMatrix,
-    priorspace::AbstractDict, phasedgeno::PolyGeno,chr::Integer;
-    callthreshold::AbstractFloat=0.5)
-    chrobsgeno = phasedgeno.offspringgeno[chr]
-    kind = kindofgeno([chrobsgeno])
-    chrmarkermap = phasedgeno.markermap[chr]
-    res=[]
-    # println("chrbadsnp=", DataFrame(chrbadsnp))
-    for m=1:size(chrbadsnp,1)
-        snp, ww = chrbadsnp[m,[2,3]]
-        pp = sortperm(ww,rev=true)
-        pp =  pp[ww[pp] .> 0]
-        # to update at the ordering of decreasing number of errors, for a given snp
-        while true
-            subres=[]
-            for p=pp
-                hhset, offls, estdose = getdosemissp(chrgenoprob,priorspace,phasedgeno,p,chr,snp,
-                    callthreshold=callthreshold)
-                obs=chrobsgeno[snp,offls]
-                if kind=="dosage"
-                    mismatch=[map((x,y)->ismissing(x) || ismissing(y) ? missing : x!=y, obs, i) for i=eachrow(estdose)]
-                elseif kind=="probability"
-                    mismatch=[map((x,y)->ismissing(y) ? missing : gbserrorscore(x,y), obs, i) for i=eachrow(estdose)]
-                else
-                    @error string("unknown offspring data type: ",kind)
-                end
-                mismatch2=[collect(skipmissing(i)) for i=mismatch]
-                nerr = [isempty(i) ? 0 : sum(i) for i in mismatch2]
-                newerr,newindex = findmin(nerr)
-                old = phasedgeno.parentgeno[chr][snp,p]
-                oldindex = findfirst([i == old for i=hhset])
-                olderr = nerr[oldindex]
-                minerrdiff = 3
-                if olderr - newerr >= minerrdiff
-                    new = hhset[newindex]
-                    chid = chrmarkermap[1,:chromosome]
-                    snpid = chrmarkermap[snp,:marker]
-                    pid = phasedgeno.parentinfo[p,:individual]
-                    push!(subres,[snpid,chid,pid,chr,snp,p,newerr,new,olderr,old])
-                end
-            end
-            if length(subres)==0
-                break
-            else
-                ndiff = [i[9]-i[7] for i=subres]
-                ii = argmax(ndiff)
-                push!(res,subres[ii])
-                snp,p,new=subres[ii][[5,6,8]]
-                phasedgeno.parentgeno[chr][snp,p] = new
-                pp=pp[pp .!= p]
-                # println("snp=",snp, ", pp=", pp, ", p=",p,", resp=",subres[ii])
-                isempty(pp) && break
-            end
-        end
-    end
-    pushfirst!(res,["marker", "chromosome", "parent",
-        "chrindex", "markerindex", "parentindex",
-        "new_nerr","new_genotype", "old_nerr", "old_genotype"])
-    res2=permutedims(reduce(hcat,res))
-    for j=[8,10]
-        res2[2:end,j]=stringjoin.(res2[2:end,j],"|")
-    end
-    df=DataFrame(res2[2:end,:],Symbol.(res2[1,:]))
-    df[!,[1,2,3,10,8,9,7]]
 end

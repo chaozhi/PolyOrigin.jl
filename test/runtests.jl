@@ -1,40 +1,40 @@
-# using Pkg
-# Pkg.develop(path=joinpath(@__DIR__, ".."))
-
 using PolyOrigin
 using Test
 cd(@__DIR__)
-pwd()
 
-
-function calacctau(dataid::String, isgbs::Bool, isrefine::Bool)
-    verbose = false
-    genofile = string(dataid, "_polyorigin_geno_", isgbs ? "GBS.csv" : "snparray.csv")
-    pedfile = string(dataid, "_polyorigin_pedigree.csv")
-    polyancestry = polyOrigin(genofile,pedfile;
-        maxrun = 3,
-        refinemap = isrefine,
-        refineorder = isrefine,
+function caltestacc(dataid::String, isrefine::Bool; verbose::Bool=false)    
+    genofile =string(dataid, "_geno.vcf.gz")
+    pedfile = string(dataid, "_ped.csv")
+    truegenofile = string(dataid, "_truegeno.vcf.gz")
+    trueorigfile = string(dataid, "_trueorig.vcf.gz")  
+    joinedancestry = last(polyorigin(
+        genofile,
+        pedfile;
+        refhapfile = truegenofile, 
+        trueorigfile, 
+        maxrun = 1,
+        isrefine, 
         outstem = nothing,
         logfile = nothing,
         verbose,
-    )
-    truefile = string(dataid, "_polyorigin_truevalue_ancestral.csv")
-    truegeno = readTruegeno!(truefile, polyancestry)
-    acc = calAccuracy!(truegeno, polyancestry)
-    verbose && @info acc
-    tau = PolyOrigin.calmapkendall(truegeno.truemap, truegeno.estmap)
-    acc, tau, polyancestry
+    ))
+    acc = calaccuracy!(truegenofile, trueorigfile, joinedancestry)
+    # @info string(dataid) acc
+    acc
 end
 
-@testset "PolyOrigin" begin    
+@testset "PolyOrigin" begin
+    @testset "coding" begin
+        @time include("test_coding.jl")
+    end
     @testset "2x" begin
-        @time include("test_2x_diallel.jl")
+        @time include("test_2x.jl")
     end
     @testset "4x" begin
-        @time include("test_4x_diallel.jl")
+        @time include("test_4x.jl")
     end
-    @testset "6x" begin
-        @time include("test_6x_diallel.jl")
-    end
+    # @testset "6x" begin
+    #     @time include("test_6x.jl")
+    # end    
 end
+

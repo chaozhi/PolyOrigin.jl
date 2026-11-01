@@ -1,5 +1,5 @@
 """
-    polyReconstruct!(polygeno::PolyGeno, keyargs...)
+    polyreconstruct!(polygeno::PolyGeno, keyargs...)
 
 performs ancestral inference from polygeno and return polyancestry::PolyAncestry.
 
@@ -9,9 +9,9 @@ performs ancestral inference from polygeno and return polyancestry::PolyAncestry
 
 # Keyword arguments
 
-`doseerr::Real=0.01`: genotypic error probability for offspring phasing.
+`doseerror::Real=0.01`: genotypic error probability for offspring phasing.
 
-`seqerror::Real=0.001`: base sequencing error probability for GBS data.
+`baseerror::Real=0.001`: base sequencing error probability for GBS data.
 
 `chrpairing::Integer=44`: chromosome pairing in offspring decoding, with 22 being only
 bivalent formations and 44 being bivalent and quadrivalent formations.
@@ -27,18 +27,15 @@ within the chromosome are deleted.
 
 `isparallel::Bool=true`: if true, multicore computing over chromosomes.
 
-`correctthreshold::AbstractFloat=0.15`: a candidate marker is selected for
-parental error correction if the fraction of offspring genotypic error >= correctthreshold.
-
-`isinfererror::Bool=false`: if true, infer dosage error rate per marker. 
-
-`isplot::Bool=false`: if true, plot haploprob for all offspring and save in
+`isplot::Bool=true`: if true, plot haploprob for all offspring and save in
 the folder "outstem_plots".
+
+'trueorigfile::Union{Nothing,AbstractString} = nothing': true ancestral origin file produced by PolyoriginSim. 
 
 `outstem::Union{Nothing,AbstractString}="outstem"`: stem of output filenames.
 If nothing, no output files.
 
-`logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log"))`:
+`logfile::Union{Nothing,AbstractString,IO}= (outstem===nothing ? nothing : string(outstem,".log"))`:
 log file or IO for writing log. If nothing, no log file.
 
 `workdir::AbstractString = pwd()`: directory for reading and writing files.
@@ -46,273 +43,482 @@ log file or IO for writing log. If nothing, no log file.
 `verbose::Bool=true`: if true, print messages on console.
 
 """
-function polyReconstruct!(phasedgeno::PolyGeno;
-    doseerr::Real=0.01,seqerr::Real=0.001,
+function polyreconstruct!(phasedgeno::PolyGeno;
+    doseerror::Real=0.01,
+    baseerror::Real=0.001,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    isparallel::Bool=true,
-    isparalleloffspring::Bool=true, 
-    correctthreshold::AbstractFloat=0.15,
-    byneighbor::Union{Nothing,Bool}=nothing,
-    isinfererror::Bool=false, 
-    missingstring::AbstractString="NA",
-    isplot::Bool=false,
-    nplot_subpop::Integer=10, 
-    outstem::Union{Nothing,AbstractString}="outstem",
+    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,    
+    bindis::Real=1e-3,     
+    iscorrectparent::Union{Nothing,Bool}=nothing,     
+    isimputefirst::Bool = true, 
+    isparallel::Union{Nothing,Bool}=nothing, 
+    isparallelind::Union{Nothing,Bool}=nothing,     
+    missingstring::AbstractString="NA",    
+    isplot::Bool=true,    
+    nplot_subpop::Integer=5, 
+    tukeyfence::Real=3, 
+    samplesize::Integer=1000,
+    trueorigfile::Union{Nothing,AbstractString}=nothing, 
+    outstem::Union{Nothing,AbstractString}="outstem",    
+    outext::AbstractString = ".vcf.gz", 
     logfile::Union{Nothing,AbstractString,IO}= (isnothing(outstem) ? nothing : string(outstem,".log")),
     workdir::AbstractString = pwd(),
-    verbose::Bool=true)
-    starttime = time()
-    if kindofgeno(phasedgeno.parentgeno) != "phasedgeno"
-        @error "parental genotypes are not not phased "
+    tempdirectory::AbstractString = tempdir(),
+    verbose::Bool=true)    
+    starttime = time()    
+    io = set_logfile_begin(logfile, workdir, "polyreconstruct!"; verbose)     
+    if isimputefirst 
+        msg_imputefirst = " (reconstruct using imputed offspring)"
+    else 
+        msg_imputefirst = " (reconstruct before imputing offspring)"
     end
-    if logfile === nothing
-        io=nothing
-    else
-        if typeof(logfile) <: AbstractString
-            io=open(getabsfile(workdir,logfile), "w+")
-            printpkgst(io,verbose,"PolyOrigin")
-        else
-            io=logfile
-        end
-    end
-    getsubPolyGeno!(phasedgeno,chrsubset=chrsubset,snpsubset=snpsubset)
-    rawDoseCall!(phasedgeno,seqerr=seqerr)
-    printconsole(io,verbose,string("polyReconstruct!, ", Dates.now()))
-    if !isnothing(chrsubset)
-        verbose && @info string("chrsubset = ",chrsubset)
-    end
-    if !isnothing(snpsubset)
-        verbose && @info string("snpsubset = ",snpsubset)
-    end
-    isparallel,isparalleloffspring= reset_parallel(isparallel,isparalleloffspring, 
-        isinfererror,length(phasedgeno.markermap); io, verbose)
     msg = string("list of option values: \n",
-        "doseerr = ", doseerr, "\n",
-        "seqerr = ",seqerr,"\n",
+        "doseerror = ", doseerror, "\n",
+        "baseerror = ",baseerror,"\n",
         "chrpairing = ",chrpairing, "\n",
         "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",
+        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",             
+        "bindis = ", bindis, "cM\n",           
+        "iscorrectparent = ", iscorrectparent, "\n",
+        "isimputefirst = ", isimputefirst, msg_imputefirst, "\n",
         "isparallel = ", isparallel, "\n",
-        "isparalleloffspring = ", isparalleloffspring, "\n",
-        "correctthreshold = ", correctthreshold, "\n",
-        "byneighbor = ", byneighbor, "\n",
-        "isinfererror = ", isinfererror, "\n",
+        "isparallelind = ", isparallelind, "\n",        
         "missingstring = ", missingstring, "\n",
         "isplot = ", isplot, "\n",
         "nplot_subpop = ", nplot_subpop, "\n",
+        "tukeyfence = ", tukeyfence, "\n",
+        "samplesize = ", samplesize, "\n",
+        "trueorigfile = ", trueorigfile, "\n",
         "outstem = ", isnothing(outstem) ? "not save to files" : outstem,"\n",
+        "outext = ",outext,"\n",
         "logfile = ",logfile,"\n",
         "workdir = ", workdir,"\n",
+        "tempdirectory = ", tempdirectory,"\n",
         "verbose = ",verbose)
     printconsole(io,verbose,msg)
-    if isnothing(byneighbor)
-        byneighbor = max(phasedgeno.parentinfo[!,:ploidy]...) >=6
-        verbose && @info string("set byneighbor = ",byneighbor)
+    info_polygeno(phasedgeno; io, verbose)    
+    isnothing(chrsubset) || printconsole(io, verbose, string("chrsubset=",chrsubset))    
+    isnothing(snpsubset) || printconsole(io, verbose, string("snpsubset=",snpsubset))    
+    getsubpolygeno!(phasedgeno,chrsubset=chrsubset,snpsubset=snpsubset)    
+    if isnothing(isparallel) || isnothing(isparallelind) 
+        if nprocs()>1
+            nmarker = sum([size(i,1) for i in phasedgeno.markermap])            
+            nchr = length(phasedgeno.markermap)
+            if nchr == 1
+                isparallel = false                
+            else
+                isparallel = isnothing(isparallel) ? (nmarker <= 10^4) : isparallel                 
+            end
+            isparallelind = !isparallel
+        else
+            isparallel = false
+            isparallelind = false
+        end
+        printconsole(io,verbose,string("reset isparallel=",isparallel))
+        printconsole(io,verbose,string("reset isparallelind=",isparallelind))
     end
-    msg = string("data: #pop=", size(phasedgeno.designinfo,1),
-        ", #parent=",size(phasedgeno.parentinfo,1),
-        ", #offspring=",size(phasedgeno.offspringinfo,1),
-        ", #chr=",length(phasedgeno.markermap),
-        ", #marker=",sum(size.(phasedgeno.markermap,1)))
-    printconsole(io,verbose,msg)
-    priorspace = getpriorstatespace(phasedgeno,chrpairing)
+    if isnothing(iscorrectparent) 
+        iscorrectparent = true
+        printconsole(io, verbose, string("reset iscorrectparent = ", iscorrectparent))
+    end    
+
+    # rawDoseCall!(phasedgeno,baseerror=baseerror)    
+    priorspace = get_priorstatespace(phasedgeno.polyped,chrpairing)
     statespace = getstatespace(priorspace)
-    nchr = length(phasedgeno.markermap)
-    genoprob = Vector{Vector}(undef,nchr)
-    valentprob = Vector{Vector}(undef,nchr)
-    correction = Vector{DataFrame}(undef,nchr)
+    nchr = length(phasedgeno.markermap)    
+    outfilels = ["" for _ in 1:nchr]
+    jltempdir = mktempdir(tempdirectory; prefix="jl_polyreconstruct_", cleanup=true)	
     tused = @elapsed if isparallel && nprocs()>1
-        phasedgenols=[getsubPolyGeno(phasedgeno,chrsubset=[chr]) for chr=1:nchr]
-        resmap = pmap(x->chrreconstruct(x,1,doseerr,chrpairing,
-            priorspace, correctthreshold,byneighbor,isinfererror, 
-            false, nothing,verbose),phasedgenols)
-        @everywhere GC.gc()
+        phasedgenols=[getsubpolygeno(phasedgeno,chrsubset=[chr]) for chr=1:nchr]
+        resconstructls = pmap(x->chrreconstruct!(x,1; bindis, 
+            chrpairing,doseerror, baseerror, iscorrectparent, isimputefirst, 
+            isparallelind=false,jltempdir, io=nothing,verbose),phasedgenols)   # phasedgenols is not modified when using pmap, 
+        @everywhere GC.gc()                
         for chr=1:nchr
-            valentprob[chr],genoprob[chr],correction[chr] = resmap[chr][1]
-            iobuffer = resmap[chr][2]
+            newgeno = resconstructls[chr][3]
+            phasedgeno.parentgeno[chr] .= newgeno.parentgeno[1]
+            phasedgeno.offspringgeno[chr] .= newgeno.offspringgeno[1]
+            phasedgeno.markermap[chr] = newgeno.markermap[1]
+            outfilels[chr] = resconstructls[chr][1]
+            iobuffer = resconstructls[chr][2]            
             if isnothing(io)
                 close(iobuffer)
             else
                 write(io,String(take!(iobuffer)))
                 flush(io)
             end
-        end
+        end        
     else
         for chr=1:nchr
-            valentprob[chr],genoprob[chr],correction[chr] = first(chrreconstruct(phasedgeno,chr,
-                doseerr,chrpairing,
-                priorspace,correctthreshold,byneighbor, isinfererror, 
-                isparalleloffspring, io,verbose))
+            outfilels[chr] = first(chrreconstruct!(phasedgeno,chr; bindis, 
+                chrpairing,doseerror, baseerror, iscorrectparent, isimputefirst,  
+                isparallelind, jltempdir, io,verbose))
             @everywhere GC.gc()
         end
-    end
+    end    
     msg = string("tused=",round(tused,digits=1), "s for all ", nchr, " chromosomes")
     printconsole(io, verbose, msg)
-    # printconsole(io,verbose,"here0_changedf")
-    changedf = vcat(correction...)
-    if size(changedf,1) > 0
-        i = size(phasedgeno.correction,1) == 0 ? 1 : phasedgeno.correction[end,:round]+1
-        insertcols!(changedf,1,:round =>i*ones(Int, size(changedf,1)))
-        phasedgeno.correction = vcat(phasedgeno.correction,changedf)
+
+    
+    valentprob = Vector{Vector}(undef,nchr)
+    diploprob = Vector{Vector}(undef,nchr)        
+    viterbiloglike = Vector{Vector}(undef,nchr)
+    viterbipath = Vector{Matrix{Int64}}(undef,nchr)
+    parentvalentprob = Vector{Any}(undef,nchr)
+    parentdiploprob = Vector{Any}(undef,nchr)
+    parentviterbiloglike = Vector{Any}(undef,nchr)    
+    parentviterbipath = Vector{Any}(undef,nchr)
+    correction = Vector{DataFrame}(undef,nchr)
+    chridls = [i[1,:linkagegroup] for i in phasedgeno.markermap]
+    for chr in eachindex(chridls)
+        jldopen(outfilels[chr]) do file
+            # res: offspring_valentprob, offspring_diploprob, offspring_viterbi_loglike, ofspring_viterbi_path, 
+            #      correctiondf, parenyt_valentprob, parent_diploprob, parent_viterbi_loglike, parent_viterbi_path, 
+            res = file[string(chridls[chr])]
+            valentprob[chr],diploprob[chr], viterbiloglike[chr], vpath, correction[chr] = res[1:5]            
+            viterbipath[chr] = reduce(hcat,vpath)
+            chrnmarker = size(viterbipath[chr],1)
+            parentvalentprob[chr],parentdiploprob[chr], parentviterbiloglike[chr],  parentvpath = res[6:9]                   
+            parentviterbipath[chr] = isnothing(parentvpath) ? nothing : reduce(hcat, [isnothing(i) ? repeat([missing],chrnmarker) : i for i in parentvpath])            
+        end
+    end        
+    if all(isnothing.(parentvalentprob)) 
+        parentvalentprob = nothing
     end
-    # printconsole(io,verbose,"here1_polyancestry")
-    polyancestry = PolyAncestry(phasedgeno.markermap,phasedgeno.parentgeno,
-        phasedgeno.parentinfo,phasedgeno.offspringinfo,
-        phasedgeno.designinfo,phasedgeno.delmarker,phasedgeno.correction,
-        statespace,valentprob,genoprob,nothing)
-    sethaploprob!(polyancestry)
-    # set outliers
-    # printconsole(io,verbose,"here2_outlier")
-    detectOutlier!(polyancestry,tukeyfence=3,minprob=0.5)
-    phasedgeno.offspringinfo[!,:isoutlier] = deepcopy(polyancestry.offspringinfo[!,:isoutlier])    
+    if all(isnothing.(parentdiploprob)) 
+        parentdiploprob = nothing
+    end    
+    changedf = reduce(vcat, correction)
+    if size(changedf,1) > 0
+        if haskey(phasedgeno.misc,"correction")
+            i = phasedgeno.misc["correction"][end,:run]+1
+        else
+            i = 1
+        end
+        insertcols!(changedf,1,:run =>i*ones(Int, size(changedf,1)))
+        pushmisc!(phasedgeno,"correction"=>changedf)
+    end    
     if !isnothing(outstem)
-        # outliers
-        outlier0=phasedgeno.offspringinfo[!,:isoutlier]
+        # save  offspring_imputed genofile    
+        outfile = string(outstem,"_imputed"*outext)         
+        savegenodata(outfile,phasedgeno,
+            missingstring=missingstring, workdir=workdir)
+        msg = string("imputed genofile: ", outfile)
+        printconsole(io,verbose,msg)   
+    end    
+    set_phased_offspring!(phasedgeno, viterbipath, statespace) # offspring geno from GP to GT_phased
+    polyancestry = PolyAncestry(phasedgeno.polyped, phasedgeno.markermap,
+        phasedgeno.parentgeno,phasedgeno.offspringgeno, 
+        statespace, valentprob, parentvalentprob,
+        diploprob,nothing, nothing, parentdiploprob, nothing, nothing, 
+        viterbipath, parentviterbipath, phasedgeno.misc)
+    setgenoprob!(polyancestry)
+    sethaploprob!(polyancestry)
+    # set outliers    
+    detectoutlier!(polyancestry; isviterbi=true, tukeyfence)
+    phasedgeno.polyped.offspringinfo[!,:isoutlier] = deepcopy(polyancestry.polyped.offspringinfo[!,:isoutlier])
+
+
+    if !isnothing(outstem)        
+        outlier0=phasedgeno.polyped.offspringinfo[!,:isoutlier]
         outlier = skipmissing(outlier0)
         isempty(outlier) ? noutlier = 0 : noutlier = sum(outlier)
         noutlier == 0 && printconsole(io,verbose,string("no outlier offspring"))
         if noutlier > 0
-            offoutid = phasedgeno.offspringinfo[outlier0,:individual]
+            offoutid = phasedgeno.polyped.offspringinfo[outlier0,:individual]
             msg = string(noutlier, " outlier offspring: ",join(offoutid,", "))
-            printconsole(io,verbose,msg)
-        end                
-        # visualize results
+            @warn msg
+            printconsole(io,false,"Warn: "*msg)
+        end        
+
+        # save  offspring_phased genofile    
+        outfile = string(outstem,"_phased"*outext)           
+        savegenodata(outfile,phasedgeno,
+            missingstring=missingstring, workdir=workdir)
+        msg = string("phased genofile: ", outfile)
+        printconsole(io,verbose,msg)   
+        
+        # visualize valent results        
         plot_valent_DR_recom!(polyancestry; 
-            isplot, minprob=0.5, fontsize=14,  
+            isplot, isviterbi=true, minprob=0.5, fontsize=14,  
             workdir, outstem, io,verbose
         )        
-        # save correction 
-        if size(phasedgeno.correction,1)>0
-            outfile = string(outstem,"_parentphased_corrected.csv")
-            savegenodata(outfile,phasedgeno,
-                missingstring=missingstring, workdir=workdir)
-            msg = string("parentcorrected file: ", outfile)
-            printconsole(io,verbose,msg)
-        end
-
-        # printconsole(io,verbose,"here3_save")
-        outfile =string(outstem,"_polyancestry.csv")
-        savePolyAncestry(outfile, polyancestry,
+        # save ancestry
+        outfile =string(outstem,"_polyancestry.csv.gz")
+        savepolyancestry(outfile, polyancestry,
             missingstring=missingstring, workdir=workdir)
         msg = string("polyancestry file: ", outfile)
         printconsole(io,verbose,msg)
-        # genoprob file is a concise version
-        outfile =string(outstem,"_genoprob.csv")
-        savegenoprob(outfile, polyancestry,
-            missingstring=missingstring, workdir=workdir)
-        msg = string("genoprob file: ", outfile, ", a concise polyancestry file")
-        printconsole(io,verbose,msg)
-        outfile = string(outstem,"_postdoseprob.csv")
-        doseprob = [calchrdoseprob(genoprob[chr],
-            phasedgeno.parentgeno[chr],phasedgeno.offspringinfo,
-            phasedgeno.designinfo,priorspace) for chr=1:nchr]
-        doseprob = PolyGeno(phasedgeno.markermap,phasedgeno.parentgeno,
-            doseprob, phasedgeno.parentinfo,
-            phasedgeno.offspringinfo,phasedgeno.designinfo,
-            phasedgeno.delmarker,phasedgeno.correction)
-        savegenodata(outfile,doseprob,
-            missingstring=missingstring, workdir=workdir)
-        msg = string("postdoseprob file: ", outfile)
-        printconsole(io,verbose,msg)
-        if isplot
-            probprobdir=saveProbPlot(polyancestry; nplot_subpop, outstem,workdir)
-            msg = string("probplot in folder: ", probprobdir)
+    end        
+    msg = "it might take a while to produce joinedancestry!"
+    printconsole(io,verbose,msg)
+    tused = @elapsed joinedancestry = JoinedPolyAncestry(polyancestry; samplesize = samplesize, isparallel);         
+    printconsole(io, verbose, string("tused = ", round(tused,digits=1), "s"))
+    if !isnothing(outstem)
+        outfile =string(outstem,"_joinedancestry.csv.gz")    
+        try 
+            savejoinedancestry(outfile, joinedancestry,
+                missingstring=missingstring, workdir=workdir)
+            msg = string("joinedancestry file: ", outfile)
             printconsole(io,verbose,msg)
+        catch err
+            msg = string("saving joinedancestry failed! ", err)
+            @error msg
+            printconsole(io,false,"Error: "*msg)                                    
+        end
+        # genoprob file is a concise version
+        # outfile =string(outstem,"_genoprob.csv.gz")
+        # savegenoprob(outfile, polyancestry,
+        #     missingstring=missingstring, workdir=workdir)
+        # msg = string("genoprob file: ", outfile, ", a concise polyancestry file")
+        # printconsole(io,verbose,msg)       
+        if isplot        
+            if isnothing(trueorigfile)
+                trueorig = nothing
+            else                
+                trueorig = readtruegeno!(trueorigfile,joinedancestry; workdir,verbose=false)    
+            end
+            for isviterbi  in [false]
+                saveprobplot(joinedancestry; trueorig, isviterbi, nplot_subpop, outstem,workdir)                            
+            end
         end
     end
-    printconsole(io,verbose,string("End, ", Dates.now(), ", time elapsed = ",
-        round(time()-starttime), " seconds by polyReconstruct!"))
-    if typeof(logfile) <: AbstractString
-        close(io)
-    elseif typeof(logfile) <: IO
-        flush(io)
-    end
-    polyancestry
+    tused = round(time()-starttime,digits=1)
+    set_logfile_end(logfile, io, tused,"polyreconstruct!"; verbose)
+    polyancestry, joinedancestry
 end
 
-function chrreconstruct(phasedgeno::PolyGeno,chr::Integer,doseerr::Real,
-    chrpairing::Integer,priorspace::AbstractDict, correctthreshold::Real,
-    byneighbor::Bool,isinfererror::Bool,
-    isparalleloffspring::Bool, io::Union{IO,Nothing},verbose::Bool)
-    isnothing(io) && (io=IOBuffer(append=true))        
-    maxvalent = max(digits(chrpairing)...)
-    priorprocess = getpriorprocess(phasedgeno,chr,maxvalent)
-    dict2group = getdict2group(priorspace,phasedgeno)    
-    nmarker = size(phasedgeno.markermap[chr],1)
-    doseerrls = [doseerr for i=1:nmarker]
-    if isinfererror
-        bvpair = randinitbvpair(priorspace,phasedgeno) # independent of chr
+function reset_errorls(errls::AbstractVector, errrate::Real)
+    [ismissing(i) ? errrate : i for i in errls]    
+end
+
+function set_phased_offspring!(phasedgeno::PolyGeno, viterbipath::AbstractVector, statespace::AbstractDict)
+    nchr = length(phasedgeno.markermap) 
+    for chr = 1:nchr        
+        offgeno = phasedgeno.offspringgeno[chr]
+        parentgeno = phasedgeno.parentgeno[chr]
+        chrvpath = viterbipath[chr]
+        for (fam,famspace) in statespace
+            fam_pgeno = parentgeno[:,famspace["parentindex"]]
+            fam_phaplo = eachcol(reduce(hcat,[reduce(vcat,i) for i in eachrow(fam_pgeno)]))            
+            statels = famspace["state"]
+            offls = famspace["offspringindex"]
+            for off =  offls                
+                pathls = statels[chrvpath[:,off]]
+                offgeno[:,off] .= map((x,y)->x[y], fam_phaplo, pathls)
+            end
+        end
+        df = phasedgeno.markermap[chr]
+        df[!,"offspringformat"] = ["GT_phased" for _ in 1:size(df,1)]
     end
-    idlen=max([length(i[1,:chromosome]) for i=phasedgeno.markermap]...)
-    chrid=lpad(phasedgeno.markermap[chr][1,:chromosome],idlen)
+    phasedgeno
+end
+
+# offfspring are imputed into GP
+function chrreconstruct!(phasedgeno::PolyGeno,chr::Integer;    
+    chrpairing::Integer, 
+    bindis::Real,   
+    doseerror::Real,
+    baseerror::Real,        
+    iscorrectparent::Bool, 
+    isimputefirst::Bool, 
+    isparallelind::Bool, 
+    jltempdir::AbstractString, 
+    io::Union{IO,Nothing},
+    verbose::Bool)
+    io===nothing && (io=IOBuffer(append=true))
+    nmarker = size(phasedgeno.markermap[chr],1)
+    doseerrorls = reset_errorls(phasedgeno.markermap[chr][!,:doseerror],doseerror)
+    baseerrorls = reset_errorls(phasedgeno.markermap[chr][!,:baseerror],baseerror)    
+    allelicbiasls = reset_errorls(phasedgeno.markermap[chr][!,:allelicbias],1.0)    
+    overdispersionls = reset_errorls(phasedgeno.markermap[chr][!,:overdispersion],0.0)
+    doseerrorls = allequal(doseerrorls) ? doseerrorls[1] : doseerrorls
+    baseerrorls = allequal(baseerrorls) ? baseerrorls[1] : baseerrorls
+    allelicbiasls  = allequal(allelicbiasls) ? allelicbiasls[1] : allelicbiasls 
+    overdispersionls = allequal(overdispersionls) ? overdispersionls[1] : overdispersionls  
+
+    priorspace = get_priorstatespace(phasedgeno.polyped,chrpairing)
+    polyped = phasedgeno.polyped
+    # dict2group = getdict2group(priorspace,polyped)    
+    dict2group = nothing # NOT transforming diploprob into genoprob
+    maxvalent = max(digits(chrpairing)...)
+    priorprocess = get_priorprocess(phasedgeno,chr,maxvalent; bindis)
+
+    # idlen=max([length(i[1,:linkagegroup]) for i=phasedgeno.markermap]...)
+    chrid = phasedgeno.markermap[chr][1,:linkagegroup]        
+    chroffgeno = get_chroffgeno(phasedgeno,chr)      
+    chroffformat = phasedgeno.markermap[chr][!,:offspringformat]
+    chrmultiallele = phasedgeno.markermap[chr][!,:multiallele]    
+    chrparentgeno= getchrparentgeno(phasedgeno.parentgeno[chr])
+    derivedgeno = get_derivedgeno(chrparentgeno,chrmultiallele, priorspace)
+    targetls = ["doseerror"]
+    if !all(occursin.("GT", unique(chroffformat))) 
+        append!(targetls, ["baseerror", "allelicbias","overdispersion"])
+    end
+    
+    # decoding for leaf-offspring    
     itmax=20
-    res=Vector(undef,2)
+    res=Vector(undef,4)
     correctiondf = DataFrame()    
     for it=1:itmax
         startt = time()        
-        if isinfererror
-            # modify doseerrls and bvpair
-            inferdoseerrls!(doseerrls,bvpair,priorspace,priorprocess,byneighbor, 
-                chr, phasedgeno)
-        end
-        # println(describe(doseerrls))
-        decode=chrposteriordecode(chr, doseerrls,dict2group,
-            priorspace,priorprocess,phasedgeno,isparalleloffspring,verbose)
-        res[1] = [i[1] for i=decode]
-        res[2] = [i[2] for i=decode]
-        # printconsole(io,verbose,string("it=",it," after decode"))
-        # ["marker", "chromosome","parent", "old_genotype", "new_genotype","old_nerr", "new_nerr"]
-        changedf=parentCorrect!(phasedgeno,chr,res[2],priorspace,
-            correctthreshold=correctthreshold)
-        # printconsole(io,verbose,string("it=",it," after correction"))
-        correctiondf = vcat(correctiondf, changedf)
-        # println("chr=", chr, ", correctiondf=",correctiondf)
-        nchange= size(changedf,1)
-        # println(changedf)
-        avgdoseerr = round(mean(doseerrls),digits=4)
-        msg = string("chr=", chrid, ", #markers=",nmarker, 
-            ", it=",it, ", <err>=", avgdoseerr)
-        msgtused = string(", tused=",round(time() - startt, digits=1),"s" )
-        if nchange==0
-            msg = string(msg, msgtused, ", no_error_correction")
-            printconsole(io,verbose,msg)
+        msg = string("chr=", chrid, ", #markers=",nmarker)
+        msg *= get_msg_err(targetls, priorprocess; 
+            doseerror = doseerrorls, baseerror = baseerrorls, 
+            allelicbias = allelicbiasls, 
+            overdispersion = overdispersionls)        
+        chrdecode = chrhmmdecode(chroffgeno, derivedgeno,priorspace, priorprocess, 
+            polyped, chroffformat, chrmultiallele; dict2group, 
+            doseerror = doseerrorls, baseerror = baseerrorls, 
+            allelicbias = allelicbiasls, overdispersion = overdispersionls,
+            ismidparent =false, isinclviterbi = true, isparallelind, jltempdir, verbose)
+        for k in 1:4
+            res[k] = [i[k] for i=chrdecode]
+        end                
+        if iscorrectparent               
+            correct_minerrdiff = min(3,max(1, round(Int,size(chroffgeno,2)/5)))      
+            changelogl, changedf = parentcorrect(chrparentgeno, chroffgeno, chroffformat, chrmultiallele, 
+                priorspace, priorprocess, polyped; 
+                doseerror=doseerrorls, baseerror=baseerrorls, 
+                allelicbias=allelicbiasls, overdispersion = overdispersionls, 
+                phaseerror_midparent = nothing, bvpair = nothing, callthreshold = 0.7, 
+                minerrdiff = correct_minerrdiff, 
+            )               
+            isaccept = changelogl > 0 
+            if isaccept 
+                correct_chrphalo!(chrparentgeno, changedf)    
+                correctiondf = vcat(correctiondf, changedf)                
+            end
+            ncorrect = size(changedf,1)                                   
+            msg_correct = string(", #correct=", ncorrect)
+            ncorrect > 0 && (msg_correct *= isaccept ? "(accepted)" : "(rejected)")
+            if ncorrect > 0 && isaccept
+                derivedgeno = get_derivedgeno(chrparentgeno,chrmultiallele, priorspace)
+            end                                
+        else
+            isaccept = false
+            ncorrect = 0
+            msg_correct = ", iscorrectparent=false"
+        end         
+        if ncorrect == 0 || it == itmax || !isaccept
+            phasedgeno.parentgeno[chr] = Matrix{Any}([ismissing(i) ? i : string.(i) for i in chrparentgeno])
+            phasedgeno.offspringgeno[chr] .= cal_condprob2doseprob(chrdecode, chrparentgeno, priorspace,priorprocess)                        
+            chroffformat .= "GP"               
+            if isimputefirst
+                # baseerror/allelicbias/od are not requred for GP format 
+                chrdecode = chrhmmdecode(phasedgeno.offspringgeno[chr], derivedgeno,priorspace, priorprocess, 
+                    polyped, chroffformat, chrmultiallele; dict2group, 
+                    doseerror=1e-3, ismidparent =false, isinclviterbi = true, isparallelind, jltempdir, verbose)                            
+                for k in 1:4
+                    res[k] = [i[k] for i=chrdecode]
+                end
+            end            
+            msgtused = string(", tused=",round(time() - startt, digits=1),"s" )
+            msg *= string(msgtused, msg_correct)            
+            printconsole(io,verbose,msg)            
             break
         else
             # (:ndosediff, :nphasediff, :nalleleflip, :nerrdiff)
             changesum=getchangesum(changedf)
-            msg = string(msg, ", #dose_diff=", changesum.ndosediff,
+            msgtused = string(", tused=",round(time() - startt, digits=1),"s" )
+            msg *= string(msgtused, msg_correct)            
+            msg *= string(", #dose_diff=", changesum.ndosediff,
                 ", #phase_diff=",changesum.nphasediff,
                 ", #error_diff_progeny=",round(changesum.nerrdiff,digits=1),
-                msgtused
                 )
-            printconsole(io,verbose,msg)
-        end
+            printconsole(io,verbose,msg)            
+        end        
     end
     push!(res, correctiondf)
-    res, io
+
+    # decoding for intermidiate parent
+    nmidparent = sum(.!polyped.parentinfo[!,:isfounder])
+    if nmidparent == 0
+        append!(res, [nothing for _ in 1:4])
+    else
+        startt = time()
+        chrformat = repeat(["GT_phased"],size(chrparentgeno,1))        
+        chrdecode = chrhmmdecode(chrparentgeno, derivedgeno,priorspace, priorprocess, 
+                polyped, chrformat, chrmultiallele; 
+                # baseerror/allelicbias/od are not requred for GT_phased
+                # doseerror is used to for phasing error rate of GT_phased; too small phased error rates might result in NaN or Inf in posterior decoding                 
+                doseerror = 0.05,                                 
+                isparallelind = isparallelind && (nmidparent > nprocs() > 1), 
+                ismidparent =true, isinclviterbi = true, jltempdir, verbose)    
+        for k in 1:4
+            push!(res, [isnothing(i) ? i : i[k] for i=chrdecode]) # parent  valentprob
+        end        
+        msgtused = string(", tused=",round(time() - startt, digits=1),"s" )
+        msg = string("chr=", chrid, ", #markers=",nmarker, ", midparent decoding", msgtused)
+        printconsole(io, verbose, msg)
+    end
+    # save results    
+    tempid = tempname(jltempdir,cleanup=true)		
+    outfile = string(tempid, "_chrreconstruct_",chrid, ".jld2")
+    jldopen(outfile,"w") do file
+        # res: offspring_valentprob, offspring_genoprob, offspring_viterbi_loglike, ofspring_viterbi_path, 
+        #      correctiondf, parenyt_valentprob, parent_genoprob, parent_viterbi_loglike, parent_viterbi_path, 
+        file[string(chrid)] = res
+    end
+    outfile, io,phasedgeno
 end
 
-# posterio decoding
-function getfhaplo(parentgeno::AbstractMatrix)
-    # parentgeno is phased genotypes without missing
-    reduce(hcat,[Vector{Int8}(vcat(parentgeno[i,:]...)) for i=1:size(parentgeno,1)])'
-end
-
-# organizing outputs as PolyProb
-
-function getstatespace(priorspace::AbstractDict)
-    statespace = deepcopy(priorspace)
-    for key=keys(statespace)
-        for i=["valentkey", "condstate", "state"]
-            delete!(statespace[key],i)
+function cal_condprob2doseprob(resdecode::AbstractVector, chrphaplo::AbstractMatrix,
+    priorspace::AbstractDict,priorprocess::AbstractDict; 
+    snporder::Union{Nothing,AbstractVector}=nothing)
+    dict_d2g = get_state2groupstate(priorspace)
+    nmarker = size(chrphaplo,1)
+    noff = length(resdecode)    
+    isnothing(snporder)  && (snporder = 1:nmarker)
+    markerincl = first(values(priorprocess)).markerincl # markerincl is the same for all popid
+    markerindices = snporder[markerincl]
+    doseprob= Matrix{Union{Missing, Vector{Float64}}}(missing,noff,nmarker)
+    for popid in keys(priorspace)
+        poppriorspace = priorspace[popid]
+        groupstates = poppriorspace["groupstate"]
+        ploidy = poppriorspace["offspringploidy"]
+        offls = poppriorspace["offspringindex"]
+        pls = poppriorspace["parentindex"]
+        phaplo = reduce(hcat,reduce.(vcat, eachrow(chrphaplo[markerindices,pls])))
+        d2g = dict_d2g[popid]
+        for off in offls
+            diploprob = resdecode[off][2]
+            size(diploprob, 1) == length(markerindices) || @error "inconsistent markerindices"
+            if size(diploprob, 2) == size(d2g,1)
+                genoprob = (diploprob * d2g)'            
+            elseif size(diploprob, 2) == size(d2g,2)
+                genoprob = diploprob'
+            else
+                error(string("unexpected size of condprob: ",size(diploprob)))
+            end
+            nallele = 2 # TODO for multiallelic markers
+            nunphased = get_nunphased(ploidy,nallele)
+            for t in eachindex(markerindices)                    
+                I, V = findnz(genoprob[:,t])                
+                prob = zeros(nunphased) 
+                for i in eachindex(I, V)
+                    d = unphased_genocode_2_index(phaplo[groupstates[I[i]], t])
+                    prob[d] += V[i]
+                end
+                doseprob[off, markerindices[t]] = prob
+            end
         end
     end
-    statespace
+    permutedims(doseprob)    
 end
 
-function getdict2group(priorspace::AbstractDict,polygeno::PolyGeno)
+function get_state2groupstate(priorspace::AbstractDict)    
+    Dict([begin        
+        groupstates = priorspace[popid]["groupstate"]
+        states = priorspace[popid]["state"]        
+        sortedstates = [sort(i) for i=states]
+        tran2group=sparse([i==j for i=sortedstates, j=groupstates])
+        popid => tran2group
+    end for popid = keys(priorspace)])
+end
+
+function getdict2group(priorspace::AbstractDict,polyped::PolyPed)
     Dict([begin
         condstates = priorspace[popid]["condstate"]
         groupstates = priorspace[popid]["groupstate"]
@@ -321,10 +527,146 @@ function getdict2group(priorspace::AbstractDict,polygeno::PolyGeno)
         sortedstates = [sort(i) for i=states]
         tran2group=sparse([i==j for i=sortedstates, j=groupstates])
         popid => tran2group
-    end for popid = polygeno.designinfo[!,:population]])
+    end for popid = polyped.designinfo[!,:family]])
 end
 
-function offposteriordecode(dataprob::AbstractVector,popid::AbstractString,
+function chrhmmdecode(chrgeno::AbstractMatrix, 
+    derivedgeno::AbstractDict,
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict,
+    polyped::PolyPed,    
+    chrformat::AbstractVector, 
+    chrmultiallele::AbstractVector; 
+    dict2group::Union{Nothing,AbstractDict} = nothing,
+    ismidparent::Bool,     
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}=0.001, 
+    allelicbias::Union{Real,AbstractVector}=1.0,        
+    overdispersion::Union{Real,AbstractVector}=0.0,
+    bvpairprop::Union{Nothing, NamedTuple}=nothing,
+    probdigits::Integer=4,
+    isinclviterbi::Bool, 
+    isparallelind::Bool, 
+    jltempdir::AbstractString, 
+    verbose::Bool)    
+    if isnothing(bvpairprop)
+        bvpairprop = get_prop_bvpair(priorspace,polyped)
+    end    
+    indinfo = ismidparent ? polyped.parentinfo : polyped.offspringinfo    
+    if ismidparent                
+        indls = findall(.!indinfo[!,:isfounder])
+        pgenols = [phased_genocode_2_index.(chrgeno[:,i],chrmultiallele) for i in indls]
+        bvpropls =  bvpairprop.parent[indls]
+    else
+        indls = collect(1:size(indinfo,1))
+        bvpropls =  bvpairprop.offspring
+        pgenols = eachcol(chrgeno)
+    end    
+    nmarker = size(chrgeno,1)    
+    doseerrorls = isa(doseerror, Real) ? doseerror * ones(nmarker) : doseerror
+    baseerrorls = isa(baseerror, Real) ? baseerror * ones(nmarker) : baseerror
+    allelicbiasls = isa(allelicbias, Real) ? allelicbias * ones(nmarker) : allelicbias
+    overdispersionls = isa(overdispersion, Real) ? overdispersion * ones(nmarker) : overdispersion
+    if isparallelind                
+        progress = Progress(length(indls);
+            enabled = verbose,    
+            desc=string(ismidparent ? "midparent" : "offspring", " decoding...")
+        )   
+        tempid = tempname(jltempdir,cleanup=true)		        
+        outfilels = [string(tempid, "_hmmdecode_", ismidparent ? "parent" : "offspring", i, ".jld2") for i in indls]    
+        resls = try 
+            progress_pmap((x,y,z,w)->decode_per_ind(x, y,z, indinfo, 
+                chrformat, chrmultiallele, doseerrorls, baseerrorls, allelicbiasls, overdispersionls,
+                derivedgeno, priorspace, priorprocess; probdigits, dict2group, outfile = w,isinclviterbi), 
+                indls, bvpropls, pgenols,outfilels;
+                progress=progress
+            ) 
+            [jldopen(outfile, "r") do file
+                [file["valentprob"],file["genoprob"], file["viterbi_loglike"], file["viterbi_path"]]
+            end for outfile in outfilels]        
+        finally
+            rm.(outfilels; force=true)
+        end        
+    else        
+        resls = map((x,y,z)->decode_per_ind(x, y,z, indinfo, 
+            chrformat, chrmultiallele, doseerrorls, baseerrorls, allelicbiasls, overdispersionls,
+            derivedgeno, priorspace, priorprocess; probdigits,dict2group, isinclviterbi), 
+            indls, bvpropls, pgenols
+        )     
+        
+    end
+    if ismidparent
+        resls2 = Vector{Any}(nothing, size(indinfo,1)) 
+        resls2[indls] .= resls
+        resls2
+    else
+        resls
+    end
+end
+
+function decode_per_ind(ind::Integer, indbvprop::Union{Missing, AbstractVector}, 
+    indgeno::AbstractVector,     
+    indinfo::AbstractDataFrame,     
+    chrformat::AbstractVector, 
+    chrmultiallele::AbstractVector, 
+    doseerrorls::AbstractVector, 
+    baseerrorls::AbstractVector,    
+    allelicbiasls::AbstractVector, 
+    overdispersionls::AbstractVector,    
+    derivedgeno::AbstractDict, 
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict;
+    dict2group::Union{Nothing,AbstractDict} = nothing,
+    probdigits::Integer, 
+    isinclviterbi::Bool, 
+    outfile::Union{Nothing,AbstractString}=nothing)        
+    popid = indinfo[ind,:family]
+    ploidy = indinfo[ind,:ploidy]    
+    tran2group = isnothing(dict2group) ? nothing : dict2group[popid]    
+    nstate = length(priorspace[popid]["state"])
+    dataprobls = [ones(nstate) for _ in 1:length(indgeno)]        
+    cal_ind_dataprobls!(dataprobls, indgeno,chrformat, chrmultiallele, derivedgeno[popid]; 
+        ploidy,doseerror=doseerrorls, baseerror=baseerrorls, 
+        allelicbias=allelicbiasls, overdispersion=overdispersionls)    
+    decode = indposteriordecode(dataprobls, popid, priorspace,priorprocess,indbvprop)    
+    valentprob, condprob = getcondprob(decode,popid, priorspace,tran2group; probdigits)  
+    if isinclviterbi
+        # valentprob columns: vvpos, logl, weight; row is ordered by decreasing logl
+        pos = argmax(valentprob[:,2])
+        pos == 1 || @warn "unexpected row ordering of valentprob" valentprob
+        indbv = valentprob[pos,1]
+        viterbi_loglike, viterbi_path = indviterbidecode(dataprobls, popid,priorspace, priorprocess, indbv)
+        res = (valentprob, condprob, viterbi_loglike, viterbi_path)
+    else
+        res = (valentprob, condprob)
+    end
+    if isnothing(outfile)
+        res
+    else
+        if isinclviterbi
+            jldsave(outfile; valentprob = res[1], genoprob=res[2], viterbi_loglike = res[3], viterbi_path = res[4])
+        else
+            jldsave(outfile; valentprob = res[1], genoprob=res[2])
+        end
+        outfile
+    end
+end
+
+
+function indviterbidecode(dataprobls::AbstractVector,popid::AbstractString,
+    priorspace::AbstractDict,priorprocess::AbstractDict,
+    indbv::Integer)
+    spacespace = priorspace[popid]["condstate"][indbv]    
+    strkey = priorspace[popid]["valentkey"][indbv]    
+    markerincl, startprob, tranprobseq = strkey2prior(priorprocess, strkey)
+    dataprobseq = [i[spacespace] for i = dataprobls[markerincl]]
+    resviterbi = viterbidecode(startprob,tranprobseq,dataprobseq)
+    (; logprob, path) = resviterbi    
+    path .= spacespace[path]
+    logprob,path
+end
+
+function indposteriordecode(dataprobls::AbstractVector,popid::AbstractString,
     priorspace::AbstractDict,priorprocess::AbstractDict,
     bvlist::AbstractVector)
     condstates = priorspace[popid]["condstate"]
@@ -333,15 +675,16 @@ function offposteriordecode(dataprob::AbstractVector,popid::AbstractString,
     res=[]
     bvkeys = keyls[bvlist]
     keyset = unique(bvkeys)
-    mindiff = log(1e-4)
+    mindiff = log(1e-6) # smaller than 1e-(probdigits)
     for strkey =keyset
         subbvlist = bvlist[bvkeys .== strkey]
         markerincl, startprob, tranprobseq = strkey2prior(priorprocess, strkey)
         for bv=subbvlist
-            dataprobseq = [i[condstates[bv]] for i = dataprob[markerincl]]
+            dataprobseq = [i[condstates[bv]] for i = dataprobls[markerincl]]
             fwprob,fwscale = forward(startprob,tranprobseq,dataprobseq)
             logl = calloglike(fwscale)
-            if logl- loglmax >= mindiff
+            # NaN >= mindiff: false
+            if logl- loglmax >= mindiff || isnan(logl)
                 bwprob=backward(tranprobseq,dataprobseq,fwscale)
                 posteriorprob=[fwprob[i] .* bwprob[i] for i=1:size(dataprobseq,1)]
                 push!(res,[bv,logl, posteriorprob])
@@ -353,96 +696,50 @@ function offposteriordecode(dataprob::AbstractVector,popid::AbstractString,
             end
         end
     end
-    bool = findall([i[2]-loglmax < mindiff for i=res])
+    loglls = [i[2] for i in res]
+    bool = [i-loglmax < mindiff for i=loglls]
+    if all(bool) || isempty(loglls) || any(isnan.(loglls))
+        @warn string("unexpected list of logl = ",loglls, ", loglmax = ",loglmax)
+    end
     deleteat!(res,bool)
     permutedims(reduce(hcat,res))
 end
 
-function getgenoprob(decode::AbstractMatrix,popid::AbstractString,
-    priorspace::AbstractDict,tran2group::AbstractMatrix)
+function getcondprob(decode::AbstractMatrix,popid::AbstractString,
+    priorspace::AbstractDict,tran2group::Union{Nothing,AbstractMatrix}; probdigits::Integer=4)
     logl = decode[:,2]
-    logmax = logsumexp(logl)
-    weight = exp.(logl .- logmax)
-    maxw = maximum(weight)
-    weight[weight .< 0.01*maxw] .= 0.0    
-    weight = round.(weight ./ sum(weight), digits=3)
-    bool = findall(weight .> 0)
-    p = bool[sortperm(weight[bool])]
-    logl = round.(logl[p],digits=3)
+    logmax = logsumexp(logl)    
+    weight = round.(exp.(logl .- logmax), digits=probdigits+1)
+    p = sortperm(logl, rev=true)
+    logl = round.(logl[p],digits=probdigits+1)
     weight = weight[p]
     vvpos = decode[p, 1]
     prob = decode[p,3]
     # prob2=[weight[i] .* sparse(round.(hcat(prob[i]...),digits=5)') for i=1:length(weight)]
-    prob2=[weight[i] .* reduce(hcat,prob[i])' for i=1:length(weight)]
-    offres = zeros(size(prob2[1],1),size(tran2group,1))
+    prob2=[weight[i] .* reduce(hcat,prob[i])' for i= eachindex(weight)]    
+    nmarker = size(prob2[1],1)
+    nstate = length(priorspace[popid]["state"])
+    offres = zeros(nmarker,nstate)
     condstates = priorspace[popid]["condstate"]
-    for i=1:length(vvpos)
+    for i=eachindex(vvpos)
         offres[:,condstates[vvpos[i]]] .+= prob2[i]
     end
-    genoprob = offres * tran2group
-    vvpos, logl, weight = reverse.([vvpos, logl, weight])
+    condprob = isnothing(tran2group) ? offres : (offres * tran2group)        
     valentprob = [vvpos logl weight]
-    valentprob, sparse(round.(genoprob,digits=3))
+    valentprob, sparse(round.(condprob,digits=probdigits))
 end
 
-function chrposteriordecode(chr::Integer,doseerrls::AbstractVector,
-    dict2group::AbstractDict,
-    priorspace::AbstractDict,priorprocess::AbstractDict,
-    phasedgeno::PolyGeno,
-    isparalleloffspring::Bool, verbose::Bool)
-    # idlen=max([length(i[1,:chromosome]) for i=phasedgeno.markermap]...)
-    # chrid=lpad(phasedgeno.markermap[chr][1,:chromosome],idlen)
-    chrdose=phasedgeno.offspringgeno[chr]
-    fhaplo= getfhaplo(phasedgeno.parentgeno[chr])    
-    deriveddose = getderiveddose(fhaplo,priorspace,phasedgeno)
-    bvprop = getbvpairprop(priorspace,phasedgeno)    
-    noff = size(chrdose,2)    
-    progress = Progress(noff;
-        enabled = verbose,
-        desc=string("Posterior decoding..."))
-    mymap = isparalleloffspring ? progress_pmap : progress_map
-    offinfo = phasedgeno.offspringinfo
-    postdecode = mymap((x,y,z)->decode_per_offspring(x, y,z, offinfo, dict2group, 
-        doseerrls, deriveddose, priorspace, priorprocess), 
-        1:noff, bvprop, eachcol(chrdose);
-        progress=progress
-    ) 
-    postdecode
+# posterio decoding
+function get_phaplo(parentgeno::AbstractMatrix)
+    # parentgeno is phased genotypes without missing
+    reduce(hcat,[Vector{Int8}(vcat(parentgeno[i,:]...)) for i=1:size(parentgeno,1)])'
 end
 
-function decode_per_offspring(off::Integer, offbvprop::AbstractVector, offdose::AbstractVector,     
-    offinfo::AbstractDataFrame, dict2group::AbstractDict,
-    doseerrls::AbstractVector, deriveddose::AbstractDict, 
-    priorspace::AbstractDict,priorprocess::AbstractDict)    
-    popid = offinfo[off,:population]
-    ploidy = offinfo[off,:ploidy]
-    tran2group = dict2group[popid]
-    dataprob = caldataprob(offdose,ploidy,deriveddose[popid],doseerrls)
-    decode = offposteriordecode(dataprob, popid, priorspace,priorprocess,offbvprop)
-    valentprob, genoprob = getgenoprob(decode,popid, priorspace,tran2group)    
-    [valentprob, genoprob]
-end
+# organizing outputs as PolyProb
 
-function inferdoseerrls!(doseerrls::AbstractVector,bvpair::AbstractVector,
-   priorspace::AbstractDict,priorprocess::AbstractDict, byneighbor::Bool,
-   chr::Integer, polygeno::PolyGeno)
-    chrdose=polygeno.offspringgeno[chr]
-    fphase = polygeno.parentgeno[chr]
-    fhaploset=[[[i] for i=j] for j=eachcol(fphase)]
-    fhaploindex=[ones(Int, length(j)) for j=fhaploset]
-    siblogl = repeat([-Inf],length(bvpair))
-    popidls = keys(priorspace)
-    if byneighbor
-        updatebvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,
-            priorspace,priorprocess,polygeno,popidls,show_progress=true)
-    else
-        randbvpair!(bvpair, siblogl,fhaploindex,fhaploset,doseerrls,chrdose,
-            priorspace,priorprocess,polygeno,popidls,isrand=false)
-    end    
-    snporder = 1:size(chrdose,1)
-    updatedoseerrls!(doseerrls, snporder,bvpair,priorspace, priorprocess,
-        chr, polygeno)   
-    nothing 
+function getstatespace(priorspace::AbstractDict)
+    statespace = deepcopy(priorspace)    
+    statespace
 end
 
 
@@ -463,14 +760,32 @@ function calnumrecom(chrancestry::AbstractMatrix)
     end for i=eachcol(chrancestry)]
 end
 
-function detectOutlier!(polyancestry::PolyAncestry;
-    minprob::Real= 0.5,tukeyfence::Real=3)
-    bestancestry=ancestrycall(polyancestry.genoprob,minprob=minprob)    
+function detectoutlier!(polyancestry::PolyAncestry;
+    isviterbi::Bool=true,
+    minprob::Real= 0.5,
+    tukeyfence::Real=3)
+    noff = size(polyancestry.polyped.offspringinfo,1)
+    noff < 3 && return nothing # too few offspring to detect outlier
+    if isviterbi
+        bestancestry = polyancestry.viterbipath
+    else
+        bestancestry=ancestrycall(polyancestry.genoprob,minprob=minprob)    
+    end
     nrecom = sum(calnumrecom.(bestancestry))
-    anscombe = 2 * (sqrt.(nrecom .+ 3.0/8))
+    anscombe = 2 * (sqrt.(nrecom .+ 3/8))
     q1,q2,q3=quantile(anscombe,[0.25,0.5,0.75])
-    upbound=q3+tukeyfence*(q3-q1)
-    outlier=anscombe .> upbound
-    polyancestry.offspringinfo[!,:isoutlier] = outlier
+    # upbound=q3+tukeyfence*(q3-q1)
+    # Carling median rule: 
+    nind = length(anscombe)
+    nind == noff || @error "unexpected length of anscombe: ", length(anscombe), ", expected: ", noff
+    ck = (17.63*nind - 23.64)/(7.74*nind-3.71) # correspoinding to tukeyfence=1.5
+    ck *= tukeyfence/1.5 
+    upbound = q2+ck*(q3-q1)
+    # Sigma rule
+    # sigma = StatsBase.std(anscombe)
+    # mu = StatsBase.mean(anscombe)
+    # upbound3 = mu + tukeyfence*1.349*sigma
+    outlier= anscombe .> upbound
+    polyancestry.polyped.offspringinfo[!,:isoutlier] = outlier
     nothing
 end

@@ -7,41 +7,46 @@ pwd()
 genofile = "geno_disturbed.csv"
 pedfile = "ped.csv"
 outstem = "outstem"
-@time polyancestry = polyOrigin(genofile, pedfile;
-    refinemap=true,
-    refineorder=true,
+@time polyancestry = polyorigin(genofile, pedfile;
+    isrefine = true, 
+    isrefineorder=true,
     isphysmap = false,
-    # isplot=true,
+    isplot=true,
 )
 
-truefile = "true.csv"
-truegeno = readTruegeno!(truefile, polyancestry)
-acc = calAccuracy!(truegeno, polyancestry)
+truefile = "true2.csv"
+# trueancestryfile = "true.csv"
+# PolyOrigin.generate_newtruefile(trueancestryfile, pedfile; outfile = truefile)
+
+truegeno = readtruegeno!(truefile, polyancestry)
+acc = calaccuracy!(truegeno, polyancestry)
 println(acc)
 
 
-plotCondprob(polyancestry, truegeno = truegeno, offspring = 1)
-animCondprob(
+plotcondprob(polyancestry, truegeno = truegeno, offspring = 1)
+animcondprob(
     polyancestry,
     truegeno = truegeno,
     fps = 0.5,
     outfile=string(outstem,"_condprob.gif"),
 )
 
-polygeno = readPolyGeno(genofile, pedfile)
-fig = plotMapComp(
+polygeno = formpolygeno(genofile, pedfile)
+fig = PolyOrigin.plotmapcomp(
     truegeno.truemap,
     polygeno.markermap,
     xlabel = "True poistion (cM)",
     ylabel = "Input position (cM)",
 )
-fig2 = plotMapComp(
+fig2 = PolyOrigin.plotmapcomp(
     truegeno.truemap,
     polyancestry.markermap,
     xlabel = "True poistion (cM)",
     ylabel = "Estimated position (cM)",
 )
 plot(fig, fig2)
+savefig("mapcomp.png")
 
 # delete output files
-rm.(filter(x->occursin(outstem,x), readdir()))
+cd(@__DIR__)
+rm.(filter(x->occursin("outstem",x), readdir()))

@@ -2,34 +2,49 @@
 
 ## Overview
 
-PolyOrigin produces in the following files
-* `oustem.log`: log file containing input argument values and computational time. 
-* `outstem_plots`: a folder collecting all produced plots if isplot = true (false by default). 
-* `outstem_parentphased.csv`: same as input genofile except that parents are phased
-* `outstem_parentphased_corrected.csv`: same as input genofile except that parents are phased and corrected
-* `outstem_maprefined.csv`: same as the above file except that map is refined
-* `outstem_postdoseprob.csv`: same as the above file except that offspring genotypes are provided in terms of posterior dosage probabilites. 
-* `outstem_valentsummary.csv`: estimation results on chromosomal pairing 
-* `outstem_polyancestry.csv`: main results from ancestral inference
-* `outstem_genoprob.csv`: a dataframe for posterior ancestral genotype probabilityes, which is also included in the above polyancestry file. 
+![](PolyOrigin2_pipeline.png)
 
-We will focus on polyancestry file, since it is the input file for downstream QTL mapping. 
+PolyOrigin produces in total 8 files
+1. oustem.log: log file containing input argument values and computational time. 
+2. outstem_plots.tar collects all figured plotted in all the three steps of PolyOrigin
+3. outstem_maprefined.vcf.gz: same as the input genofile except that parents are phased and map is refined
+4. outstem_imputed.vcf.gz: same as the input genofile except that parents are phased, offspring are imputed, and map is refined
+5. outstem_phased.vcf.gz: same as the input genofile except that parents and offspring are phased and map is refined
+6. outstem_chrpairing.csv: inference results on chromosomal pairing 
+7. outstem_polyancestry.csv.gz: main results from ancestor inference
+8. outstem_joinedancestry.csv.gz: polyacestry with joined state space
+
+In the following, we will describe polyancestry file and joinedancestry file, each of which contains a collection of dataframes. 
 
 ## polyacnestry file
 
 The output `polyancestryfile` is a CSV file containing a list of dataframes:
 
-1. `designinfo`: parents for each subpopulation (F1 cross or selfing)
-2. `parentinfo`: ploidy for each parent
-3. `offspringinfo`: information for each offspring such as ploidy level, isoutlier (too many breakpoints) , and the posterior number of breakpoins in each linkage group
-4. `delmarker`: list of deleted markers
-5. `correction`: list of founder dosages being corrected in the step of parental phasing
-6. `valentlist`: list of valent configurations for each full-sib family
-7. `valentprob`: posterior probabilities of valent configurations for each offspring
-8. `parentgeno`: phased genotpyes for all parents
-9. `ancestralgenotype`: list of possible unphased origin-genotypes for each family. 
-10. `genoprob`: marginal posterior probaiblities of unphased origin-genotypes at each marker for each individual
+1. `pedigree`: pedigree information 
+2. `valentlist`: list of valent configurations for each full-sib family
+3. `valentprob`: posterior probabilities of valent configurations for all individuals except founders
+4. `parentgeno`: phased genotpyes for all founders and intermediators that are both parents and offspring. 
+5. `offspringgeno`: phased genotpyes for leaf offspring that have no progeny. 
+6. `unphasedstate`: list of possible unphased origin-genotypes for each family. 
+7. `phasedstate`: list of possible phased origin-genotypes for each family.
+8. `viterbipath`: best phased origin-genotypes at all markers for each individual, resulting from the Viterbi algorithm. 
+9. `diploprob`: marginal posterior probaiblities of phased origin-genotypes at each marker for each individual, resulting from the forward-backward algorithm. 
+10. `genoprob`: marginal posterior probaiblities of unphased origin-genotypes derived from the above `diploprob`. 
+11. `haploprob`: marginal posterior probaiblities of parent origins derived from the above `diploprob`. The posterior probabilities are unormalized and summed to the correponding ploidy. 
 
-The unphased origin-genotypes of an offspring are defined in terms of the parental origins of its immediate parents, where the parental origins act as alleles. For example, if an offspring is produced by selfing a tetraploid parent and qudrivalent formation is allowed, there are 35 possible origin-genotypes: 1-1-1-1, 1-1-1-2, ..., 4-4-4-4, where 1, 2, 3, and 4 denote the parent origins (homologs) of the parent. If an offspring is produced by crossing between two tetraploid parents and qudrivalent formation is allowed, there are 100 possible origin-genotypes: 1-1-5-5, 1-1-5-6, ..., 4-4-8-8, where 1, 2, 3, and 4 denote the parent origins (homologs) of the 1st parent, and 5, 6, 7, and 8 denote the parent origins (homologs) of the 2nd parent. The set of origin-genotypes is given in the dataframe `ancestralgenotype` for each subpopulation. 
+In polyancestryfile, the possible origin-genotypes of an offspring (or an intermediator) are defined in terms of the parental origins of its immediate parents. The parental origins of the 1st parent (mother) are denoted by 1, 2,..., $k_1$ for the $k_1$ homologs of the parent. If the offspring is not self-fertilized,  the parental origins of the 2nd parent (father) are denoted by $k_1$+1, $k_1+2$, ..., $k_1+k_2$ for the $k_2$ homologs of the parent. Thus, the definitions of `phasestate` and `unphasestate` are family-specific. 
 
-In the `genoprob` dataframe, each cell denotes the posterior probabilities for a given offspring at a given marker. The sparse probability vector is represented in form of origin-genotype-indices => posterior-probabilites.  For example, 54|59|84=>0.995|0.005|0.001, the left part "54|59|84" denotes the indices 54, 59, and 84 of origin-genotypes 2-3-5-8, 2-3-7-8, and 3-4-5-8, respectively; and the right part denotes the corresonding posterior probabilities 0.995, 0.005, and 0.001, respectively. Each probability is round to three digits after the dicimal place and only non-zeros probabilities are listed. 
+## joinedacnestry file
+
+The output `joinedancestryfile` is a CSV file containing a list of dataframes:
+
+1. `pedigree`: pedigree information 
+2. `joinedspace`: definition of founder origins. 
+3. `foundergeno`: phased founders' genotypes, resulting from parental phasing and correction.
+4. `offspringgeno`: phased genotpyes for leaf offspring that have no progeny. 
+5. `viterbipath`: best phased origin-genotypes at all markers for each individual, derived from `viterbipath` of `polyancestryfile`. 
+6. `diploprob`: marginal posterior probaiblities of phased origin-genotypes at each marker for each individual, obtained by 1000 random samples from `diploprob` of `polyancestryfile`. 
+7. `genoprob`: marginal posterior probaiblities of unphased origin-genotypes, derived from the above `diploprob`. 
+8. `haploprob`: marginal posterior probaiblities of founder origins derived from the above `diploprob`. The posterior probabilities are unormalized and summed to the correponding ploidy. 
+
+In joinedancestryfile, the possible origin-genotypes of an offspring (or an intermediator) are defined in terms of the founder origins of all founders (see `joinedspace`). The founder origins of the i-th founder are denoted by $s_i$+1, $s_i$ + 2,..., $s_i + k_i$ for its $k_i$ homologs, where $s_i$ is the accumulated sum of ploidies over founders coming before founder $i$ and it is given by $s_1$ = 0 and $s_i = \sum_{j=1}^{i-1} k_j$ for $i > 1$. 

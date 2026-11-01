@@ -1,136 +1,141 @@
 
-function calsinglelogl(chrdose::AbstractMatrix, deriveddose::AbstractDict,
-    bvpair::AbstractVector,priorspace::AbstractDict,priorprocess::AbstractDict,
-    doseerrls::AbstractVector, polygeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing)
-    isnothing(snporder) && (snporder = 1:size(chrdose,1))
-    popidls = polygeno.designinfo[!,:population]
-    markerincl = first(values(priorprocess)).markerincl
-    tseq = findall(markerincl)
-    noff = size(polygeno.offspringinfo,1)
-    singlelogl = Matrix{Union{Missing,Float64}}(missing,length(markerincl),noff)
-    for popid = popidls
-        offls = findall(polygeno.offspringinfo[!,:population] .== popid)
-        # ploidy is the same for individuals in a population
-        ploidy = polygeno.offspringinfo[first(offls),:ploidy]
-        condstates = priorspace[popid]["condstate"]
-        keyls = priorspace[popid]["valentkey"]
-        for off = offls
-            bv=bvpair[off]
-            startprob = only(getstartprobls(priorprocess,[keyls[bv]]))
-            ddose = deriveddose[popid][:, condstates[bv]]
-            dataprob = caldataprob(chrdose[:,off],ploidy,ddose,doseerrls)
-            dataprob = dataprob[snporder[tseq]]
-            singlelogl[tseq,off] = [log(dot(startprob,i)) for i=dataprob]
-        end
-    end
+function cal_singlelogl(phaplo::AbstractMatrix, 
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector,
+    chrmultiallele::AbstractVector,
+    derivedgeno::AbstractDict,
+    priorspace::AbstractDict,priorprocess::AbstractDict,
+    bvpair::NamedTuple; 
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},     
+    overdispersion::Union{Real,AbstractVector},
+    markerls::Union{Nothing, AbstractVector} = nothing)
+    nmarker = size(chroffgeno,1)
+    doseerrorls = typeof(doseerror) <: Real ? doseerror*ones(nmarker) : doseerror
+    baseerrorls = typeof(baseerror) <: Real ? baseerror*ones(nmarker) : baseerror
+    allelicbiasls = typeof(allelicbias) <: Real ? allelicbias*ones(nmarker) : allelicbias      
+    overdispersionls = typeof(overdispersion) <: Real ? overdispersion*ones(nmarker) : overdispersion
+    bvdict = get_bvdict(bvpair, priorspace)
+    startprobls = get_startprobls(priorprocess,bvdict)
+    if isnothing(markerls)  
+        markerls = 1:nmarker    
+    end    
+    singlelogl = zeros(length(startprobls),nmarker)
+    for snp in markerls    
+        dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+            phaseerror_midparent, doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+            allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],
+            site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp]
+        )
+        singlelogl[:, snp] .= map((x,y) -> log(dot(x,y)), startprobls, dataprobls)
+    end 
     singlelogl
 end
 
-function callogbackward(chrdose::AbstractMatrix, deriveddose::AbstractDict,
-    bvpair::AbstractVector,priorspace::AbstractDict,priorprocess::AbstractDict,
-    doseerrls::AbstractVector, polygeno::PolyGeno;
+function cal_logbackward(phaplo::AbstractMatrix, 
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector,
+    chrmultiallele::AbstractVector,    
+    derivedgeno::AbstractDict,
+    bvpair::NamedTuple,
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict; 
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector}, 
+    overdispersion::Union{Real,AbstractVector}, 
+    exclparent::Bool=false,
     snporder::Union{Nothing,AbstractVector}=nothing)
-    popidls = polygeno.designinfo[!,:population]
-    res=Vector{Matrix{Union{Float64,Missing}}}(undef,size(polygeno.offspringinfo,1))
-    nsnp = size(chrdose,1)
-    isnothing(snporder) && (snporder = 1:nsnp)
-    for popid = popidls
-        offls = findall(polygeno.offspringinfo[!,:population] .== popid)
-        condstates = priorspace[popid]["condstate"]
-        keyls = priorspace[popid]["valentkey"]
-        for off = offls
-            bv = bvpair[off]
-            markerincl, startprob, tranprobseq = strkey2prior(priorprocess, keyls[bv])
-            ploidy = polygeno.offspringinfo[off,:ploidy]
-            ddose = deriveddose[popid][:, condstates[bv]]
-            dataprob = caldataprob(chrdose[:,off],ploidy,ddose,doseerrls)
-            dataprob = dataprob[snporder]
-            dataprobseq = dataprob[markerincl]
-            bw0 = logbackward(tranprobseq, dataprobseq)
-            bw=reduce(hcat,bw0)'
-            resbw = Matrix{Union{Float64,Missing}}(missing,nsnp,size(bw,2))
-            resbw[markerincl,:] = bw
-            res[off]=resbw
-        end
-    end
-    res
+    nseq = size(chroffgeno,1)
+    isnothing(snporder) && (snporder = 1:nseq)
+    doseerrorls = typeof(doseerror) <: Real ? doseerror*ones(nseq) : doseerror
+    baseerrorls = typeof(baseerror) <: Real ? baseerror*ones(nseq) : baseerror
+    allelicbiasls = typeof(allelicbias) <: Real ? allelicbias*ones(nseq) : allelicbias        
+    overdispersionls = typeof(overdispersion) <: Real ? overdispersion*ones(nseq) : overdispersion
+    markerincl=first(values(priorprocess)).markerincl
+    tseq = findall(markerincl)   
+    reslogbw = Vector{Any}(undef, length(markerincl))
+    bvdict = exclparent ? get_bvdict_exclparent(bvpair, priorspace) : get_bvdict(bvpair, priorspace)               
+    reslogbw[tseq[end]] = [zeros(length(i)) for i in get_startprobls(priorprocess, bvdict)]            
+    for kk in length(tseq)-1:-1:1                
+        tnow = tseq[kk]            
+        snp = snporder[tseq[kk+1]]
+        dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+            phaseerror_midparent,doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+            allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],             
+            site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp],
+            exclparent
+        )
+        tranprobls = get_tranprobls(priorprocess, bvdict,tnow);
+        logbwprob = deepcopy(reslogbw[tseq[kk+1]])
+        cal_nextlogbackward!(logbwprob, dataprobls, tranprobls)                    
+        reslogbw[tnow] = logbwprob
+    end    
+    reslogbw
 end
 
-function calinitforward(tinit::Integer,dataprobls::AbstractVector,
-    bvpair::AbstractVector, priorspace::AbstractDict,
-    priorprocess::AbstractDict, phasedgeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing)
-    nsnp = length(first(values(priorprocess)).markerid)
-    snporder == nothing && (snporder=1:nsnp)
-    bvkeyls = getbvkeyls(bvpair,priorspace,phasedgeno)
-    startprobls = getstartprobls(priorprocess,bvkeyls)
-    popidls = phasedgeno.designinfo[!,:population]
-    noff = size(phasedgeno.offspringinfo,1)
-    fwprob=Vector{Matrix{Union{Float64,Missing}}}(undef,noff)
-    fwlogl=Vector{Vector{Union{Float64,Missing}}}(undef,noff)
-    for popid = popidls
-        offls = findall(phasedgeno.offspringinfo[!,:population] .== popid)
-        for off = offls
-            dataprob = dataprobls[off]
-            startprob = startprobls[off]
-            ls = startprob .* dataprob
-            scale = sum(ls)
-            prob = Matrix{Union{Float64,Missing}}(missing,nsnp,length(startprob))
-            prob[tinit,:] = ls ./ scale
-            fwprob[off] = prob
-            logscale = Vector{Union{Float64,Missing}}(missing,nsnp)
-            logscale[tinit] = log(scale)
-            fwlogl[off] = logscale
+# input logbwprob refers to tback, and output logbwprob refers to tnow
+# dataprobls refers to tback not tnow!, and tranprobls gives tranprob from tnow to tback for each individual
+# tnow < tback backwardly
+function cal_nextlogbackward!(logbwprob::AbstractVector, dataprobls::AbstractVector, tranprobls::AbstractVector)        
+    for ind in eachindex(logbwprob, dataprobls, tranprobls)
+        bw = logbwprob[ind]
+        logpmax = maximum(bw)
+        @. bw = exp(bw - logpmax) * dataprobls[ind] 
+        tranprob = tranprobls[ind]
+        if !any(isnothing.(tranprob))
+            bw .= kronvec(tranprob[1],tranprob[2], bw) 
         end
+        @. bw = log(bw) + logpmax    
     end
-    Dict("fwprob"=>fwprob,"fwlogl"=>fwlogl)
+    logbwprob
 end
 
-function calnextforward!(fwdict::AbstractDict,tnow::Integer,tnext::Integer,
-    dataprobls::AbstractVector,bvpair::AbstractVector,
-    priorspace::AbstractDict, priorprocess::AbstractDict,phasedgeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing,
-    tnowdis::Union{Nothing,Real}=nothing)
-    fwprob=fwdict["fwprob"]
-    fwlogl=fwdict["fwlogl"]
-    nsnp=length(fwlogl[1])
-    snporder == nothing && (snporder=1:nsnp)
-    if tnowdis == nothing
-        tranprobdict = Dict([strkey=>priorprocess[strkey].tranprobseq[tnow]
-            for (strkey, pri) in priorprocess])
-    else
-        tranprobdict = Dict([strkey=>getgametetran(tnowdis,pri.nvalent)
-            for (strkey, pri) in priorprocess])
+function cal_initforward(startprobls::AbstractVector, dataprobls::AbstractVector)
+    fwprob = [similar(i) for i in dataprobls]
+    fwlogl = zeros(length(dataprobls))
+    for ind in eachindex(startprobls, dataprobls)
+        fwprob[ind] .= startprobls[ind] .* dataprobls[ind]
+        scale = sum(fwprob[ind])
+        fwprob[ind] ./= scale
+        fwlogl[ind] = log(scale)
     end
-    popidls = phasedgeno.designinfo[!,:population]
-    for popid = popidls
-        offls = findall(phasedgeno.offspringinfo[!,:population] .== popid)
-        keyls = priorspace[popid]["valentkey"]
-        for off = offls
-            fwoff = fwdict["fwprob"][off]
-            dataprob = dataprobls[off]
-            tranprob = [tranprobdict[i] for i= split(keyls[bvpair[off]],"|")]
-            pnow =fwoff[tnow,:]
-            ls= kronvec(tranprob[1]', tranprob[2]', pnow) .* dataprob
-            scale = sum(ls)
-            fwoff[tnext,:] = ls ./ scale
-            fwoff[tnow+1:tnext-1,:] .= missing
-            fwlogl[off][tnext] = fwlogl[off][tnow] + log(scale)
-            fwlogl[off][tnow+1:tnext-1] .=  missing
-        end
-    end
-    fwdict
+    [fwprob, fwlogl]
 end
 
-function calindlogl(fwdict::AbstractDict,logbw::AbstractVector,t::Integer)
-    fwprob=fwdict["fwprob"]
-    fwlogl=fwdict["fwlogl"]
-    [begin
-        lp=logbw[i][t,:]
-        lpmax=max(lp...)
-        log(dot(exp.(lp .- lpmax), fwprob[i][t,:])) + lpmax + fwlogl[i][t]
-    end for i=1:length(logbw)]
+function cal_nextforward!(fwprob_logl::AbstractVector, dataprobls::AbstractVector, tranprobls::AbstractVector)
+    fwprob, fwlogl = fwprob_logl
+    for ind in eachindex(fwprob, fwlogl, dataprobls,tranprobls)
+        dataprob = dataprobls[ind]
+        tranprob = tranprobls[ind]
+        if any(isnothing.(tranprob))
+            fwprob[ind] .= fwprob[ind] .* dataprob
+        else
+            # fwprob[ind] .= (tranprob' * fwprob[ind]) .* dataprob
+            fwprob[ind] .= kronvec(tranprob[1]',tranprob[2]',fwprob[ind]) .* dataprob
+        end
+        scale = sum(fwprob[ind])
+        fwprob[ind] ./= scale
+        fwlogl[ind] += log(scale)
+    end
+    fwprob_logl
+end
+
+function calindlogl(fwprob_logl::AbstractVector,logbwprob::AbstractVector)
+    fwprob, fwlogl = fwprob_logl
+    [begin 
+        lpmax = maximum(logbwprob[ind])            
+        lp = exp.(logbwprob[ind] .- lpmax)             
+        log(dot(lp, fwprob[ind])) + lpmax + fwlogl[ind]
+    end for ind in eachindex(logbwprob, fwprob, fwlogl)]
+end
+
+function calindlogl(fwprob_logl::AbstractVector,reslogbw::AbstractVector, t::Integer)
+    logbwprob = reslogbw[t] 
+    calindlogl(fwprob_logl,logbwprob)
 end
 
 function calvuongts(logldiff::AbstractVector,dfdiff::Integer)
@@ -143,97 +148,151 @@ function calvuongts(logldiff::AbstractVector,dfdiff::Integer)
     vuong
 end
 
-function calvuongts!(kk::Integer,tseq::AbstractVector,logl::AbstractVector,
-    singlelogl::AbstractMatrix,logbw::AbstractVector,fwdict::AbstractDict,
-    bvpair::AbstractVector, priorspace::AbstractDict,priorprocess::AbstractDict,
-    chrdose::AbstractMatrix, deriveddose::AbstractDict,
-    doseerrls::AbstractVector, polygeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing,
-    caldistance::Bool=false)
-    isnothing(snporder) && (snporder = 1:size(chrdose,1))
+function calvuongts!(kk::Integer,
+    tseq::AbstractVector,
+    logl::AbstractVector,    
+    fwprob_logl::AbstractVector,    
+    singlelogl::AbstractMatrix,
+    reslogbw::AbstractVector, 
+    bvdict::AbstractDict, 
+    phaplo::AbstractMatrix, 
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector,
+    chrmultiallele::AbstractVector,
+    derivedgeno::AbstractDict,
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict,
+    bvpair::NamedTuple; 
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerrorls::AbstractVector, 
+    baseerrorls::AbstractVector, 
+    allelicbiasls::AbstractVector, 
+    overdispersionls::AbstractVector, 
+    bindis::Real, 
+    snporder::Union{Nothing,AbstractVector}=nothing)
+    isnothing(snporder) && (snporder = 1:size(chroffgeno,1))
     # fwdict is modified inside of function
     dfdiff = -1
-    isologl = singlelogl[tseq[kk],:]
-    b=.!isnan.(isologl)
+    isologl = singlelogl[:, snporder[tseq[kk]]]
     if kk==1
-        dataprobls = calsitedataprobls(tseq[2],doseerrls[tseq[2]],bvpair,
-            deriveddose,chrdose,priorspace,polygeno)
-        propfwdict = calinitforward(tseq[2],dataprobls,bvpair,priorspace,
-            priorprocess,polygeno,snporder=snporder)
-        proplogl0 = calindlogl(propfwdict,logbw,tseq[2])
-        proplogl = proplogl0[b] .+ isologl[b]
-    elseif kk==length(tseq)
-        proplogl0 = [i[tseq[kk-1]] for i=fwdict["fwlogl"]]
-        proplogl = proplogl0[b] .+ isologl[b]
+        snp  = snporder[tseq[2]]
+        dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+            phaseerror_midparent,doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+            allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],
+            site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp]
+        )
+        startprobls=get_startprobls(priorprocess, bvdict)
+        init_prob_logl = cal_initforward(startprobls, dataprobls)
+        proplogl = calindlogl(init_prob_logl,reslogbw, tseq[2])
+        proplogl .+= isologl
+    elseif kk==length(tseq)        
+        proplogl = fwprob_logl[2]        
+        proplogl .+= isologl
     else
-        dataprobls = calsitedataprobls(tseq[kk+1],doseerrls[tseq[kk+1]],bvpair,
-            deriveddose,chrdose,priorspace,polygeno)
-        if caldistance
-            bvkeyls = getbvkeyls(bvpair,priorspace,polygeno)
-            tnowdis= first(calinterdis(tseq[kk-1],tseq[kk+1],priorprocess,bvkeyls,
-                dataprobls,fwdict,logbw))
-        else
-            pri1=first(values(priorprocess))
-            tnowdis=sum(pri1.markerdeltd[tseq[kk-1:kk]])
-        end
-        calnextforward!(fwdict,tseq[kk-1],tseq[kk+1],dataprobls,bvpair,priorspace,
-            priorprocess,polygeno,snporder=snporder,tnowdis=tnowdis)
-        proplogl0 = calindlogl(fwdict,logbw,tseq[kk+1])
-        proplogl = proplogl0[b] .+ isologl[b]
-        dataprobls = calsitedataprobls(tseq[kk],doseerrls[tseq[kk]],bvpair,
-            deriveddose,chrdose,priorspace,polygeno)
-        calnextforward!(fwdict,tseq[kk-1],tseq[kk],dataprobls,bvpair,priorspace,
-            priorprocess,polygeno,snporder=snporder)
+        snp  = snporder[tseq[kk+1]]
+        dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+            phaseerror_midparent,doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+            allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],
+            site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp]
+        )
+        pri1=first(values(priorprocess))
+        tnowdis=sum(pri1.markerdeltd[tseq[kk-1:kk]])
+        tranprobls = cal_tranprobls(priorprocess,bvdict,tnowdis,bindis)
+        prop_prob_logl = deepcopy(fwprob_logl) # fw_prob_logl refers to tseq[kk-1]
+        cal_nextforward!(prop_prob_logl, dataprobls, tranprobls)
+        proplogl = calindlogl(prop_prob_logl,reslogbw, tseq[kk+1])      
+        proplogl .+= isologl 
+        # updating  fwprob_logl for next iteration       
+        snp  = snporder[tseq[kk]]
+        dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+            phaseerror_midparent,doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+            allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],
+            site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp]
+        )
+        tranprobls = get_tranprobls(priorprocess,bvdict,tseq[kk-1])
+        cal_nextforward!(fwprob_logl, dataprobls, tranprobls)        
     end
-    logldiff = proplogl .- logl[b]
+    logldiff = proplogl .- logl
     isempty(logldiff) ? 0 : calvuongts(logldiff,dfdiff)
 end
 
-function polymarkerdel!(fhaploindex::AbstractVector,fhaploset::AbstractVector,
-    bvpair::AbstractVector, priorspace::AbstractDict,priorprocess::AbstractDict,
-    chrdose::AbstractMatrix, doseerrls::AbstractVector, polygeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing,
-    delsiglevel::Real=0.05,
-    caldistance::Bool=false)
-    fhaplo= getfhaplo(fhaploindex, fhaploset)
-    deriveddose = getderiveddose(fhaplo,priorspace,polygeno)
-    isnothing(snporder) && (snporder = 1:size(chrdose,1))
-    singlelogl= calsinglelogl(chrdose, deriveddose, bvpair,priorspace,priorprocess,
-        doseerrls, polygeno,snporder=snporder)
-    logbw = callogbackward(chrdose, deriveddose, bvpair,priorspace,priorprocess,
-        doseerrls, polygeno; snporder=snporder)
+function polymarkerdel!(bvpair::NamedTuple, 
+    phaploindex::AbstractVector,
+    phaploset::AbstractVector,    
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict,
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector, 
+    chrmultiallele::AbstractVector;
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},
+    overdispersion::Union{Real,AbstractVector},
+    delsiglevel::Real, 
+    bindis::Real,
+    snporder::Union{Nothing,AbstractVector}=nothing)
+    isnothing(snporder) && (snporder = 1:size(chroffgeno,1))
+    phaplo=get_phaplo(phaploindex,phaploset)
+    derivedgeno = get_derivedgeno(phaplo,chrmultiallele, priorspace)
+    singlelogl = cal_singlelogl(phaplo, chroffgeno,chroffformat, chrmultiallele, derivedgeno, 
+        priorspace, priorprocess, bvpair; phaseerror_midparent,doseerror, 
+        baseerror, allelicbias,overdispersion
+    )    
+    reslogbw = cal_logbackward(phaplo, chroffgeno,chroffformat, chrmultiallele, derivedgeno, 
+        bvpair, priorspace, priorprocess; 
+        phaseerror_midparent,doseerror, baseerror, allelicbias, overdispersion, snporder
+    )
+    # 
+    nmarker = size(chroffgeno,1)
+    doseerrorls = typeof(doseerror) <: Real ? doseerror*ones(nmarker) : doseerror
+    baseerrorls = typeof(baseerror) <: Real ? baseerror*ones(nmarker) : baseerror
+    allelicbiasls = typeof(allelicbias) <: Real ? allelicbias*ones(nmarker) : allelicbias       
+    overdispersionls = typeof(overdispersion) <: Real ? overdispersion*ones(nmarker) : overdispersion
     markerincl=first(values(priorprocess)).markerincl
-    tseq = findall(markerincl)
-    # TODO: cal dataprobls
-    dataprobls = calsitedataprobls(tseq[1],doseerrls[tseq[1]],bvpair,deriveddose,
-        chrdose,priorspace,polygeno)
-    fwdict = calinitforward(tseq[1],dataprobls,bvpair,priorspace,priorprocess,
-        polygeno,snporder=snporder)
-    logl = calindlogl(fwdict,logbw, tseq[1])
-    res=Vector{Union{Missing,Float64}}(missing,length(markerincl))
-    res[tseq] = [calvuongts!(kk,tseq,logl,singlelogl,logbw,fwdict,
-        bvpair,priorspace,priorprocess,chrdose, deriveddose, doseerrls, polygeno,
-        snporder=snporder,caldistance=caldistance) for kk=1:length(tseq)]
+    tseq = findall(markerincl)    
+    snp = snporder[tseq[1]]
+    dataprobls = cal_sitedataprob_singlephase(snp,phaplo, derivedgeno, bvpair,priorspace,chroffgeno; 
+        phaseerror_midparent,doseerror=doseerrorls[snp], baseerror = baseerrorls[snp], 
+        allelicbias = allelicbiasls[snp], overdispersion = overdispersionls[snp],
+        site_offformat = chroffformat[snp], site_nallele = chrmultiallele[snp]
+    )
+    bvdict = get_bvdict(bvpair, priorspace)
+    startprobls=get_startprobls(priorprocess, bvdict)
+    fwprob_logl = cal_initforward(startprobls, dataprobls)
+    logl = calindlogl(fwprob_logl,reslogbw, tseq[1])
+    res=zeros(length(tseq))
+    for kk=1:length(tseq)
+        res[kk] = calvuongts!(kk,tseq,logl,fwprob_logl, singlelogl, reslogbw, bvdict, 
+            phaplo, chroffgeno, chroffformat, chrmultiallele, derivedgeno, 
+            priorspace,priorprocess,bvpair; 
+            phaseerror_midparent,doseerrorls, baseerrorls, allelicbiasls, overdispersionls, bindis, snporder)
+    end 
     threshold = abs(quantile(Normal(),delsiglevel))
-    delsnp = tseq[res[tseq] .> threshold]
-    markerincl[delsnp] .= false
-    for (key, val) in priorprocess
-         setmarkerincl!(val,markerincl)
-    end
-    delsnp
+    deltt = tseq[res .> threshold]    
+    setpriorprocess!(priorprocess, deltt,bindis)
+    deltt
 end
 
-function polymarkerdel!(bvpair::AbstractVector,
-    priorspace::AbstractDict,priorprocess::AbstractDict,
-    chrdose::AbstractMatrix, doseerrls::AbstractVector, polygeno::PolyGeno;
-    snporder::Union{Nothing,AbstractVector}=nothing,
-    delsiglevel::Real=0.05,
-    caldistance::Bool=false,
-    chrindex::Integer=1)
-    fphase = polygeno.parentgeno[chrindex]
-    fhaploset=[[[i] for i=j] for j=eachcol(fphase)]
-    fhaploindex=[ones(Int, length(j)) for j=fhaploset]
-    polymarkerdel!(fhaploindex,fhaploset,bvpair,
-        priorspace, priorprocess,chrdose, doseerrls, polygeno;
-        snporder,delsiglevel,caldistance)
+function polymarkerdel!(bvpair::NamedTuple,    
+    priorspace::AbstractDict,
+    priorprocess::AbstractDict,
+    chrparentgeno::AbstractMatrix,
+    chroffgeno::AbstractMatrix,
+    chroffformat::AbstractVector, 
+    chrmultiallele::AbstractVector;
+    phaseerror_midparent::Union{Nothing,Real},
+    doseerror::Union{Real,AbstractVector}, 
+    baseerror::Union{Real,AbstractVector}, 
+    allelicbias::Union{Real,AbstractVector},
+    overdispersion::Union{Real,AbstractVector},
+    delsiglevel::Real, 
+    bindis::Real,   
+    snporder::Union{Nothing,AbstractVector}=nothing)    
+    phaploset=[[[i] for i=j] for j=eachcol(chrparentgeno)]
+    phaploindex=[ones(Int, length(j)) for j=phaploset]
+    polymarkerdel!(bvpair, phaploindex,phaploset, priorspace, priorprocess,
+        chroffgeno, chroffformat, chrmultiallele; 
+        phaseerror_midparent, doseerror, baseerror, allelicbias, overdispersion, delsiglevel, snporder,bindis
+    )   
 end

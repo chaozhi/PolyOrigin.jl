@@ -1,16 +1,93 @@
+
+
+"""
+    ErrorSetting
+
+keyword-based struct for the setting of an error parameter. 
+
+# Fields 
+
+`name::String`: name of an error parameter. It is required and must be "doseerror", "allelicbias", "overdispersion", or "baseerror". 
+
+`isinfer::Bool=true`: infer the error parameter only if isrefineerror && isinfer is true. 
+
+`prior::Distribution`: prior distribution of an error rate. 
+
+`init::Real`: initial error rate value. 
+
+`softthresh::Real`: soft threshold for marker deletion. 
+For "doseerror", "baseerror", or "overdispersion", a marker is deleted if 
+error_rate > softthresh and it is an outlier among markers. 
+For "allelicbias", a marker is deleted if f(error_rate) > f(softthresh) 
+and it is an outlier. Here f(x) = max(x, 1/x). 
+
+`hardthresh::Real`: hard threshold for marker deletion. 
+Similar to softthresh except that a marker is deleted in spite of being outlier. 
+
+"""
+Base.@kwdef struct ErrorSetting
+    name::String # "doseerror", "allelicbias", "overdispersion", "baseerror"
+    isinfer::Bool =  seterrorfield(name, (true,true,true,false))   
+    prior::Distribution = seterrorfield(name, (Beta(1,9), LogNormal(0,1), Exponential(0.5), Beta(1,49)))
+    init::Union{Nothing,Real} = seterrorfield(name,(0.01,1,0.0,0.001)) # if doseerror.init == nothing, it is set to 0.001 if format is AD and otherwise 0.01 
+    softthresh::Real = seterrorfield(name,(0.05,2,0.1,0.01))
+    hardthresh::Real = seterrorfield(name,(0.2,10,1.0,0.05))
+end
+
+function seterrorfield(name::AbstractString, valuels::Tuple) 
+    # valuels is in the order of "doseerror", "allelicbias", "overdispersion", "baseerror"
+    length(valuels) == 4 || error("valuels must be of length 4")
+    if name == "doseerror"
+        valuels[1]
+    elseif name == "allelicbias"
+        valuels[2]
+    elseif name == "overdispersion"
+        valuels[3]
+    elseif name == "baseerror"
+        valuels[4]
+    else
+        error("unknown error name: ",name)
+    end
+end
+
+# """
+#     BiasSetting
+
+# keyword-based struct for the setting of allelicbias. 
+# The allelic bias is defined as the relative enrichment (>0) of alternative alleles in PCR sequencing; 
+# the enrichment of reference allele is set to 1. 
+# # Fields 
+
+# `prior::Distribution = LogNormal(0,2)`: prior distribution of allelic bais that is used  
+# in the inference in the 2nd step of refinement. 
+
+# `init::Real = 1.0`: initial value in the inference. The default 1.0 denotes no allelic bias. 
+
+# `softthresh::Real = 2`: a marker is deleted if max(allelicbias,1/allelicbias) > softthresh  AND 
+# it is an outlier among markers. 
+
+# """
+# Base.@kwdef struct BiasSetting
+#     prior::Distribution = LogNormal(0,2)    
+#     init::Real = 1.0
+#     softthresh::Real = 2
+# end
+
 """
     PolyGeno
 
 mutable struct that stores genotypic data and pedigree information
 
-    PolyGeno(markermap,parentgeno,offspringgeno,parentinfo,offspringinfo,designinfo,delmarker,correction)
+    PolyGeno(markermap,parentgeno,offspringgeno,parentinfo,offspringinfo,designinfo,isdelvuong,correction)
 
 constructor from genotypic data and pedigree information.
 
 # Fields
 
+`polyped::PolyPed`: breeding pedigree information. See also [`PolyPed`](@ref).
+
 `markermap::Vector{DataFrame}`: marker map for each chromosome. `markermap[c]`
-gives the dataframe of chromosome c with columns [:marker, :chromosome, :position].
+gives the dataframe of chromosome c. 
 
 `parentgeno::Vector{Matrix}`: genotypic data in parents. `parentgeno[c][m,i]`
 gives the genotype of parent i at marker m of chromosome c.
@@ -18,142 +95,66 @@ gives the genotype of parent i at marker m of chromosome c.
 `offspringgeno::Vector{Matrix}`: genotypic data in offspring. `offspringgeno[c][m,i]`
  gives the genotype of offspring i at marker m of chomosome c.
 
-`parentinfo::DataFrame`: parent information with columns [:individual, :ploidy].
-
-`offspringinfo::DataFrame`: offspring information with columns
-[:individual,:population,:isoutlier].
-
-`designinfo::DataFrame`: design information with columns
-[:population, :parent1, :parent2, ...]. The dataframe element `n_ij` denotes
-the nubmer of gametes contributed to each offspring in i-th population by j-th parent.
-`n_ij`=2 means that i-th population is produced by self-fertilization of
-j-th parent. Row sum must be 2.
-
-`delmarker::DataFrame`: dataframe for collecting markers that were removed from markermap,
-in the stages of parental phasing or map refinement. It has columns
-[:marker, :chromosome, :position].
-
-`correction::DataFrame`: dataframe for collecting parental genotype corrections.
-It has columns [:round,:marker,:chromosome,:parent,:old_genotype,:new_genotype,:old_nerr,:new_nerr].
-
-!!! note
-    A genotype in `offspringgeno` must be one of following formats 1-3, and
-    a genotype in `parentgeno` must be one of following formats 1-4:
-
-    1. `dosage`: ranges from 0, 1, ..., ploidy, and missing for missing dosage;
-    2. `readcount`:  [c1, c2] where c1 and c2 are the number of reads for
-        alleles 1 and 2, respectively. Missing genotypes are denoted by [0,0].
-    3. `probability`: [p0, p1, ...], where p_i denotes the probability of observed
-       data given dosage i = 0, ..., ploidy, and the probabilities are normalized so that
-       their sum is 1.
-    4. `phasedgeno`: [g1, g2,...],  where g_i=1 or 2 for i=1,..., ploidy.
+`misc::Dict{String, DataFrame}`: contains information such as (1) "deletion" dataframe
+for markers that were removed from markermap, (2) "correction" dataframe for
+parental error correction. 
 
 """
 mutable struct PolyGeno
-    # markermap  [chr][:marker,:chromosome,:position]
+    polyped::PolyPed
+    # markermap  [chr][:marker,:linkagegroup,:poscm]
     markermap::Vector{DataFrame}
     # parentgeno: [chr][marker,parent]
-    parentgeno::Vector{Matrix}
+    parentgeno::Union{Nothing,Vector{Matrix}}
     # offspringgeno: [chr][marker,offspring]
-    offspringgeno::Vector{Matrix}
-    #parentinfo [:individual,:ploidy]
-    parentinfo::DataFrame
-    #offspringinfo [:individual, :population]
-    offspringinfo::DataFrame
-    #designinfo [:population, :parent1, :parent2, ...]
-    designinfo::DataFrame
-    # delmarker  [:marker,:chromosome,:position]
-    delmarker::DataFrame
-    # correction: [:marker,:chromosome,:parent,:old_genotype,:new_genotype, :old_nerr,:new_nerr]
-    correction::DataFrame
-    function PolyGeno(markermap,parentgeno,offspringgeno,parentinfo,
-            offspringinfo,designinfo,delmarker,correction)
-        checkgenodim(parentgeno) || @error("inconsistent parental genotypes")
-        checkgenodim(offspringgeno) || @error("inconsistent offspring genotypes")
-        dims = [length(markermap),size(parentgeno,1),size(offspringgeno,1)]
+    offspringgeno::Union{Nothing,Vector{Matrix}}
+    #parentinfo [:individual,:ploidy]    
+    misc::Dict{String, DataFrame}        
+
+    function PolyGeno(polyped, markermap,parentgeno,offspringgeno, misc)
+        # check genodata        
+        dims = [length(markermap)]
+        isnothing(parentgeno) || push!(dims, length(parentgeno))
+        isnothing(offspringgeno) || push!(dims, length(offspringgeno))
         if length(union(dims))!=1
             error("inconsistent number of linkage groups ",dims)
         end
-        dims = [size.(markermap,1),size.(parentgeno,1),size.(offspringgeno,1)]
+        dims = [size.(markermap,1)]
+        isnothing(parentgeno) || push!(dims, size.(parentgeno,1))
+        isnothing(offspringgeno) || push!(dims, size.(offspringgeno,1))
         if length(union(dims))!=1
             error("inconsistent number of markers within linkage groups ",dims)
         end
-        dims = [union(size.(offspringgeno,2)),[size(offspringinfo,1)]]
-        if length(union(dims))!=1
-            error("inconsistent number of offspring ",dims)
+        # check dimension consistency between polyped and genodata
+        if !isnothing(parentgeno)
+            dims = size.(parentgeno,2)
+            push!(dims,size(polyped.parentinfo,1))
+            if length(unique(dims))!=1
+                error("inconsistent number of parents ",dims)
+            end
         end
-        dims = [union(size.(parentgeno,2)),[size(parentinfo,1)]]
-        if length(union(dims))!=1
-            error("inconsistent number of parents ",dims)
+        if !isnothing(offspringgeno)
+            dims = size.(offspringgeno,2)
+            push!(dims,size(polyped.offspringinfo,1))
+            if length(unique(dims))!=1
+                error("inconsistent number of offspring ",dims)
+            end
         end
-        new(markermap,parentgeno,offspringgeno,parentinfo,
-            offspringinfo,designinfo,delmarker,correction)
+        new(polyped, markermap,parentgeno,offspringgeno,misc)
     end
 end
 
+
 """
-    readPolyGeno(genofile, pedfile, keyargs...)
+    formpolygeno(genofile, pedfile, keyargs...)
 
 reads input files and returns polygeno::PolyGeno.
 
 # Positional arguments
 
-`genofile::AbstractString`: filename for genotypic data. For example, a CSV formatted
-genofile looks like
+`genofile::AbstractString`: filename for genotypic data in a vcf format. 
 
-```
-    marker, chromosome, pos, ind1,ind2, ind3, ...
-    snp1, 1, 0.14, 0, 2, 1, 4, ...
-    snp2, 1, 0.16, 4, 0, NA, 2, ...
-    snp3, 1, 0.21, NA, 3, 0, 1, ...
-```
-!!! note
-    * The first three columns specify the genetic map. Marker IDs in
-      column 1 must be unique, chromosome IDs in column 2 must be
-      consecutive, and positions (in unit of centi-Morgan or base pair)
-      of markers in column 3 must be non-descreasing within a chromosome.
-
-    * The rest of columns give the genotypes of sampled individuals. The indvidual
-      IDs must be unique. The genotypes of all parents must be represented by
-      one of the following formats 1-4, and the genotypes of all offspring must
-      be represented by one of the following formats 1-3.
-
-      1. `dosage`: ranges from 0, 1, ..., ploidy, and NA for missing dosage;
-      2. `readcount`: c1|c2, where c1 and c2 are the number of reads for alleles
-         1 and 2, respectively. Missing genotypesare given by 0|0
-      3. `probability`: p(0)|p(1)|...|p(ploidy), where p(i) denotes the probability
-          of observed data given dosage i = 0, ..., ploidy, and the probabilities
-          are normalized so that their sum is 1.
-      4. `phasedgeno`: g(1)|g(2)|...|g(ploidy),  where g(i)=1 or 2 for i=1,..., ploidy.
-
-    * All individuals must be in the `pedfile`.
-
-`pedfile::AbstractString`: filename for pedigree information. For example, a CSV formatted
-pedfile looks like
-```
-    individual, population, motherid, fatherid, ploidy
-    P1, 0, 0, 0, 4
-    P3, 0, 0, 0, 4
-    P3, 0, 0, 0, 4
-    offspring1, pop1, P1, P2, 4
-    offspring2, pop1, P1, P2, 4
-    offspring3, pop2, P1, P3, 4
-    offspring4, pop2, P1, P3, 4
-    offspring5, pop3, P2, P3, 4
-    offspring6, pop4, P3, P3, 4
-```
-!!! note
-    * The pedigree contains three founders (parents), two offspring from the cross
-      beween parents 1 and 2, two offspring from the cross between parents 1 and 3,
-      one offspring from the cross between parents 2 and 3, and one offspring from the selfing of
-      parent 3.
-
-    * All individual IDs in column 1 must be unique,
-      column 2 denotes ID for the founder population and IDs for each F1 cross or selfing,
-      columns 3 and 4 denotes the parents of each sub-population (motherID and fatherID
-      of founders are set to 0), and column 5 denotes the ploidy level.
-
-    * All parents and all offspring must be in the `genofile`.
+`pedfile::AbstractString`: filename for pedigree information in a CSV format. 
 
 # Keyword arguments
 
@@ -161,7 +162,7 @@ pedfile looks like
 
 `delimchar::AbstractChar=','`:  text delimiter.
 
-`commentstring::AbstractString="#"`: rows that begins with commentstring will be ignored.
+`commentstring::AbstractString="##"`: rows that begins with commentstring will be ignored.
 
 `isphysmap::Bool=false`: true if input markermap is physical map, where
 marker locations are in unit of base pair(bp).
@@ -171,263 +172,115 @@ marker locations are in unit of base pair(bp).
 `workdir::AbstractString = pwd()`: directory for reading genofile and pedfile
 
 """
-function readPolyGeno(inpugenofile::AbstractString, inpupedfile::AbstractString;
+function formpolygeno(genofile::AbstractString, pedfile::AbstractString;
     isphysmap::Bool=false,
     recomrate::Real=1, # 1 cM per Mbp
-    missingstring::AbstractString="NA",
+    formatpriority::AbstractVector=["AD","GP", "GT"],
+    delmultiallelic::Bool=true,    
+    missingstring=["NA","missing"],
     delimchar::AbstractChar=',',
-    commentstring::AbstractString="#",
-    workdir::AbstractString = pwd(),
-    verbose::Bool=true)
-    genofile = getabsfile(workdir,inpugenofile)
-    isfile(genofile) || @error(string(inpugenofile," does not exist in workdir = ",workdir))
-    pedfile = getabsfile(workdir,inpupedfile)
-    isfile(pedfile) || @error(string(inpupedfile," does not exist in workdir = ",workdir))
-    # imort pedfile
-    parentinfo,offspringinfo,designinfo=readDesign(pedfile,
-            delimchar=delimchar,
-            commentstring=commentstring)
-    parentid=parentinfo[!,:individual]
-    offid=offspringinfo[!,:individual]
-    nparent = length(parentid)
-    noff = length(offid)
-    # imort genofile
-    geno=CSV.read(genofile, DataFrame; delim=delimchar,comment=commentstring,missingstring=missingstring)
-    # genofile resulting polyoriginsim, genofile for polyorgin v2
-    namels = names(geno)    
-    delcolls = ["physchrom", "physposbp", "parentformat","offspringformat",
-        "multiallele", "alleles", "quality", "filter", "info","doseerror","baseerror","allelicbias", "overdispersion", "doublereduction"]    
-    intersect!(delcolls, namels)
-    isV2format = !isempty(delcolls)
-    if isV2format        
-        geno = geno[!,setdiff(namels,delcolls)]
+    commentstring::AbstractString="##",
+    workdir::AbstractString = pwd())
+    # import pedfile
+    polyped = readpolyped(pedfile; delim=delimchar, commentstring, workdir)    
+    # import genofile
+    genodf,commentlines = readgenodf(genofile,pedfile; formatpriority,
+        delmultiallelic,commentstring, missingstring, workdir)    
+    # formpoygeo
+    polygeno = formpolygeno!(genodf, polyped; isphysmap, recomrate)
+    if !isempty(commentlines)
+        filecomment = DataFrame(sourcefile=getabsfile(workdir,genofile),
+            commentlines=commentlines)
+        pushmisc!(polygeno,"filecomment"=>filecomment)
     end
-    # 
-    if size(geno,2) != 3+nparent+noff
-        error(string(genofile, " must contain #column = 3+#parent+#offspring = ",3+nparent+noff))
-    end
-    markermap = geno[!, 1:3]
-    parsemarkermap!(markermap)
-    typedind = string.(strip.(string.(names(geno)[4:end])))
-    allunique(typedind) || @error ("individual IDs are not unique")
-    d=setdiff(parentid,typedind)
-    isempty(d) || @error string("parents in ", pedfile,  " but not genotyped: ", d)
-    d=setdiff(offid,typedind)
-    isempty(d) || @error string("offspring in ", pedfile,  " but not genotyped: ", d)
-    d=setdiff(typedind,parentid,offid)
-    isempty(d) || @error string("offspring genoytped but not in ", pedfile,  ": ", d)
-    snpindexlist=splitindex(markermap[!,:chromosome])
-    rule= Dict(typedind .=>4:(3+nparent+noff))
-    parentcols=[get(rule,i,missing) for i=parentid]
-    parentgeno = [Matrix(geno[i,parentcols]) for i=snpindexlist]
-    parentgeno2=parseinputgeno(parentgeno,missingstring=missingstring)
-    offcols=[get(rule,i,missing) for i=offid]
-    offspringgeno = [Matrix(geno[i,offcols]) for i=snpindexlist]
-    offspringgeno2=parseinputgeno(offspringgeno,missingstring=missingstring)
-    if isphysmap
-        maxloc = max(markermap[!,:position]...)
-        if maxloc<10^6.0
-            error(string("marker positions in physical map must be in base pair"))
-        end
-        markermap[!,:position] .*= recomrate*10^(-6.0)
+    polygeno
+end
+
+function pushmisc!(polygeno::PolyGeno,miscpair::Pair{String,DataFrame})
+    strkey, df = miscpair
+    if haskey(polygeno.misc,strkey)
+        polygeno.misc[strkey] = vcat(polygeno.misc[strkey],df)
     else
-        if eltype(markermap[!,:position]) <: Real
-            maxloc = max(markermap[!,:position]...)
-            if maxloc>10^6.0
-                error(string("marker positions in genetic map must be in centiMorgan"))
-            end
-        end        
-    end
-    markermap2=[DataFrame(i) for i=groupby(markermap,:chromosome)]
-    verbose && @info string("data: #pop=", size(designinfo,1),
-        ", #parent=",nparent, ", #offspring=",noff,
-        ", #chr=",length(markermap2), ", #marker=",size(markermap,1))
-    delmarker = getemptydf([String,String,Float64],[:marker,:chromosome,:position])
-    colid = [:round,:marker,:chromosome,:parent,:old_genotype,:new_genotype, :old_nerr,:new_nerr]
-    coltype = [Integer,String,String,String,String,String,Integer,Integer]
-    correction = getemptydf(coltype,colid)
-    PolyGeno(markermap2,parentgeno2,offspringgeno2,parentinfo,offspringinfo,
-        designinfo,delmarker,correction)
-end
-
-function parsemarkermap!(markermap::DataFrame)
-    rename!(markermap,[:marker,:chromosome,:position])
-    for i=1:2
-        markermap[!,i]=string.(strip.(string.(markermap[!,i])))
-    end
-    # check unqiue of marker id
-    allunique(markermap[:,1]) || @error ("marker IDs are not unique")
-    # check unqiue of chrid
-    snpindexlist=splitindex(markermap[:,2])
-    chridls = [markermap[first(i),2] for i=snpindexlist]
-    if !allunique(chridls)
-        @error ("some markers in the same chromosome are not consecutive")
-    end
-    # set chrid with same string length
-    # idlen = max(length.(markermap[!,2])...)
-    # markermap[!,2]=[lpad(i,idlen) for i=markermap[!,2]]
-    # check position
-    if eltype(markermap[!,3]) <: Real
-        markermap[!,3]=Float64.(markermap[!,3])
-        bool=[begin
-            A=markermap[i,3]
-            all(A[1:end-1] .<= A[2:end])
-        end for i=snpindexlist]
-        if !all(bool)
-            wrongchrs = chridls[.!bool]
-            @error string("markers positions in chrs=",wrongchrs, " are not in non-descreasing order")
-        end
-    end
-    markermap
-end
-
-# TODO: more testing for genodata.
-function parseinputgeno(geno::AbstractVector;missingstring::AbstractString="NA")
-    kind = [eltype(geno[i]) for i=1:length(geno)]
-    if length(unique(kind)) != 1
-        @error(string("inconsistent genotypes among chromosomes: ",kind))
-    end
-    kind2 = kind[1]
-    if kind2 <: Union{Missing,AbstractString}
-        [begin 
-            gg = join(skipmissing(unique(chrgeno)))
-            if occursin("|",gg) 
-                gdelim = "|"
-            elseif occursin("&",gg)
-                gdelim = "&"
-            else
-                @error string("unknown geno, gg=",gg)
-            end
-            type = occursin(".",gg) ? Float64 : Int 
-            missval = type == Int ? [0,0] : missing
-            [ismissing(i) ? missval : parse.(type,replace(split(i,gdelim),missingstring=>missing)) for i=chrgeno] 
-        end for chrgeno in geno]
-    elseif kind2 <: Union{Missing,Integer}
-        return geno
-    else
-        @error(string("unknown genotype data type: ",kind2))
+        push!(polygeno.misc, miscpair)
     end
 end
 
-function checkgenodim(geno::AbstractVector)
-    kind = eltype(geno[1])
-    if kind <: Union{Missing,Integer}
-        true
-    elseif kind <: AbstractVector
-        # missing is not allowed
-        len = [unique(length.(i)) for i=geno]
-        length.(unique(len)) == [1]
-    else
-        @error(string("unknown genotype data type: ",kind))
-    end
-end
+#  colunns in parse dataframe: ["marker", "linkagegroup","poscm","physchrom", "physposbp", "parentformat","offspringformat",
+#     "multiallele", "alleles", "quality", "filter", "info", "doseerror","baseerror","allelicbias", "overdispersion"]
 
-function kindofgeno(geno::AbstractVector)
-    type = eltype(geno[1])
-    if type <: Union{Missing,Integer}
-        return "dosage"
-    elseif type <: AbstractVector
-        subtype = eltype(type)
-        if subtype <:  Union{Missing,Integer}
-            bool = unique(length.(geno[1][1,:])) == [2]
-            bool2 = issubset(skipmissing(unique(vcat(geno[1]...))),[1,2])
-            return  (bool && !bool2) ? "readcount" : "phasedgeno"
-        elseif subtype <: AbstractFloat
-            return "probability"
-        else
-            @error string("unknow geno data type: ", type)
-        end
-    else
-        @error string("unknow geno data type: ", type)
-    end
-end
+const _col_1sterr = 13
 
+const _col_1stsample = 17
 
-function readDesign(pedfile::AbstractString;
-    delimchar::AbstractChar=',',
-    commentstring::AbstractString="#")
-    # not considered: the case of offspring with only one parent, that is, gamete instead of zygote.
-    if !isfile(pedfile)
-        error("pedfile: ", pedfile, " does not exist")
-    end
-    design=CSV.read(pedfile,DataFrame; delim=delimchar,comment=commentstring)
-    if size(design,2)<5
-        error("At least 5 columns are required in ",pedfile)
-    else
-        namels = names(design)
-        if namels == ["member", "mother", "father","family","gender","generation", "ploidy"]
-            # format of peddf in polyorign v2
-            design = design[:,[1,4,2,3,7]]
-        else
-            design=design[:,1:5]
-        end        
-        rename!(design,[:individual,:population,:mother,:father,:ploidy])
-        for i=1:4
-            design[!,i]=string.(strip.(string.(design[!,i])))
-        end
-    end
-    allunique(design[!,1]) || @error("individual IDs are not unique")
-    isparent = [design[i,3] == "0" && design[i,4] == "0" for i=1:size(design,1)]
-    isparent .+= [design[i,3] == "NA" && design[i,4] == "NA" for i=1:size(design,1)]
-    isparent .+= [design[i,3] == "notapplicable" && design[i,4] == "notapplicable" for i=1:size(design,1)]
-    isoff  = .!isparent
-    d=setdiff(design[isoff,:mother],design[!,:individual])
-    isempty(d) || @error("offspring have unknown mothers  ", d)
-    d=setdiff(design[isoff,:father],design[!,:individual])
-    isempty(d) || @error("offspring have unknown father  ", d)
-    poplist=design[isoff,:population]
-    popindexlist=[findall(poplist .== i) for i=unique(poplist)]
-    parentinfo=design[isparent,[:individual,:ploidy]]
-    offspringinfo=design[isoff,[:individual,:population,:ploidy]]
-    outlier = Vector{Union{Missing,Bool}}(missing,size(offspringinfo,1))
-    offspringinfo[!,:isoutlier] = outlier
-    dict=Dict(parentinfo[!,:individual] .=> parentinfo[!,:ploidy])
-    for rg = popindexlist
-        subpop = unique(design[isoff, :][rg,2:5])
-        size(subpop,1) == 1 || @error string("parents and ploidy levels in a subpopulation are inconsistent: ", subpop)
-        parentploidy = [get(dict, i, missing) for i=Vector(subpop[1,2:3])]
-        offploidy = sum(parentploidy) ÷ length(parentploidy)
-        offploidy == subpop[1,end] || @error string("offspring ploidy = ",offploidy, " is consisstent with those of parents = ",parentploidy)
-    end
-    popparent=design[isoff,[:population,:mother,:father]][first.(popindexlist),:]
-    designinfo=getdesigninfor(popparent,parentinfo)
-    (parentinfo=parentinfo,offspringinfo=offspringinfo,designinfo=designinfo)
-end
-
-function getdesigninfor(popparent::DataFrame,parentinfo::DataFrame;
-    missingstring::String="NA")
-    npop=size(popparent,1)
-    nfounder = size(parentinfo,1)
-    rule=Dict(parentinfo[!,:individual] .=> 1:nfounder)
-    crossparent=setdiff(Matrix(popparent[!,2:3])[:],[missingstring])
-    d=setdiff(crossparent,parentinfo[!,:individual])
+function formpolygeno!(genodf::DataFrame,polyped::PolyPed;    
+    isphysmap::Bool=false,
+    recomrate::Real=1.0)
+    isfounder = polyped.parentinfo[!, :isfounder]
+    founderid = polyped.parentinfo[isfounder,:individual]
+    parentid = polyped.parentinfo[.!isfounder,:individual]
+    offspringid = polyped.offspringinfo[!,:individual]    
+    indls = names(genodf)[_col_1stsample:end]
+    d= setdiff(indls,founderid, parentid,offspringid)
     if !isempty(d)
-        error(string("parents that are used in crosses but not listed:", d, ",pp=",parentinfo[!,:individual]))
-    end
-    d=setdiff(parentinfo[!,:individual],crossparent)
-    if !isempty(d)
-        error(string("parents that are listed in ",pedfile,"  but not used in crosses:", d))
-    end
-    res = zeros(Int,npop,nfounder)
-    for i=1:npop,j =2:3
-        c=get(rule,popparent[i,j],0)
-        c>0 && (res[i,c]+=1)
-    end
-    df=DataFrame(res,Symbol.(parentinfo[!,:individual]))
-    insertcols!(df, 1, :population=> convert.(String,popparent[!,:population]))
-    df
+        msg = string(length(d), " individuals in genofile by not in pedfile: ",d)
+        @warn msg
+    end   
+    # fgenodf has colunns consistent with newparentid; offgenodif has columns consistent with newoffspringid    
+    mapdf, fgenodf, newfounderid, pgenodf, newparentid, offgenodf,newoffspringid = splitgenodf(genodf,
+        founderid, parentid,offspringid; isphysmap,recomrate)       
+    oldparents = vcat(founderid, parentid)
+    newparents = vcat(newfounderid, newparentid)
+    if newoffspringid != offspringid  || oldparents != newparents       
+        peddf = ped2df(polyped.ped)
+        filter!(row -> in(row[:member], vcat(newparents,newoffspringid)), peddf)
+        polyped = PolyPed(Pedigree(peddf))
+    end 
+    set_format_dosage!(mapdf, fgenodf,pgenodf, offgenodf,polyped)        
+    markermap, parentgeno, offspringgeno = parsegenodf!(mapdf, fgenodf,pgenodf, offgenodf)        
+    misc = Dict{String, DataFrame}()    
+    polygeno = PolyGeno(polyped,markermap,parentgeno,offspringgeno,misc)
+    isphysmap && sortmarker!(polygeno; byphysmap=true)
+    polygeno
 end
 
-function getploidy(polygeno::PolyGeno, pop::Integer)
-    ff=polygeno.designinfo[pop,2:end]
-    popfounder = convert.(Bool,ff)
-    nn=polygeno.parentinfo[:ploidy][popfounder]
-    ploidy=Int(mean(nn))
-    sum(ff) == 1 ? (ploidy ÷ 2) : ploidy
+function sortmarker!(polygeno::PolyGeno; byphysmap::Bool=false)
+    if byphysmap 
+        chrcol,poscol = :physchrom, :physposbp
+    else
+        chrcol,poscol = :linkagegroup, :poscm
+    end
+    b = [any(ismissing.(i[!,chrcol]) .|| ismissing.(i[!,poscol])) for i in polygeno.markermap]
+    if any(b)
+        @warn string("physical map is missing for some markers; sortmarker! is not perform")
+    else
+        merge_chromosome!(polygeno)
+        chridls = sort(unique(polygeno.markermap[1][!,chrcol]))
+        ls = [begin 
+            posls = findall(polygeno.markermap[1][!,chrcol] .== chrid)
+            posls[sortperm(polygeno.markermap[1][posls,poscol])]
+            # all(markermap[1][posls,:physchrom] .== chrid)
+        end for chrid in chridls]
+        polygeno.markermap = [polygeno.markermap[1][i,:] for i in ls]
+        if !isnothing(polygeno.parentgeno)
+            polygeno.parentgeno =  [polygeno.parentgeno[1][i,:] for i in ls]
+        end
+        if !isnothing(polygeno.offspringgeno)
+            polygeno.offspringgeno = [polygeno.offspringgeno[1][i,:] for i in ls]        
+        end
+    end
+    polygeno
 end
 
-getploidy(polygeno::PolyGeno) =
-    [getploidy(polygeno,pop) for pop=1:size(polygeno.designinfo,1)]
+function merge_chromosome!(polygeno::PolyGeno)
+    polygeno.markermap = [reduce(vcat,polygeno.markermap)]
+    if !isnothing(polygeno.parentgeno)
+        polygeno.parentgeno=[reduce(vcat,polygeno.parentgeno)]
+    end
+    if !isnothing(polygeno.offspringgeno)
+        polygeno.offspringgeno=[reduce(vcat,polygeno.offspringgeno)]
+    end
+    polygeno
+end
 
 function getGenodf(polygeno::PolyGeno;missingstring::AbstractString="NA")
     markermap = Matrix(vcat(polygeno.markermap...))
@@ -443,7 +296,7 @@ function getGenodf(polygeno::PolyGeno;missingstring::AbstractString="NA")
             end
             a
         end for ch=1:nch]...)
-    elseif kind in  ["dosage"]
+    elseif kind in  ["GT_dosage"]
         fgeno =vcat(polygeno.parentgeno...)
     else
         @error string("unkown data type of parental genodata: ",kind)
@@ -451,65 +304,421 @@ function getGenodf(polygeno::PolyGeno;missingstring::AbstractString="NA")
     kind = kindofgeno(polygeno.offspringgeno)
     if  kind in  ["phasedgeno", "readcount", "probability"]
         offgeno =vcat([stringjoin.(polygeno.offspringgeno[ch],"|") for ch=1:nch]...)
-    elseif kind in  ["dosage"]
+    elseif kind in  ["GT_dosage"]
         offgeno =vcat(polygeno.offspringgeno...)
     else
         @error string("unkown data type of offspring genodata: ",kind)
     end
     geno=hcat(markermap,fgeno,offgeno)
-    parentid = Symbol.(polygeno.parentinfo[!,:individual])
-    offid = Symbol.(polygeno.offspringinfo[!,:individual])
+    parentid = Symbol.(polygeno.polyped.parentinfo[!,:individual])
+    offid = Symbol.(polygeno.polyped.offspringinfo[!,:individual])
     rowid = vcat(propertynames(polygeno.markermap[1]),parentid,offid)
     DataFrame(geno,rowid)
 end
 
-"""
-    savegenodata(outfile,polygeno,missingstring="NA",workdir=pwd())
 
-saves genotypic data of the struct polygeno into outfile
+"""
+    savegenodata(outfile,polygeno; missingstring="NA",workdir=pwd(),delim=',')
+
+save genotypic data of polygeno::PolyGeno into outfile
 
 # Positional arguments
 
-`outfile::AbstractString`: filename for saving results.
+`outfile::AbstractString`: output genofile for saving genotypic data.
 
-`polygeno::PolyGeno`: a struct returned by [`readPolyGeno`](@ref).
+`polygeno::PolyGeno`: a struct returned by [`formpolygeno`](@ref).
 
 # Keyward arguments
+
+`commentstring::AbstractString="##"`: lines starting with commentstrig are comment lines. 
 
 `missingstring::AbstractString="NA"`: string code for missing value.
 
 `workdir::AbstractString = pwd()`: directory for writing outfile.
 
+`delim::AbstractChar=','`: delimitor character. For vcf outfile, set delim = '\t'. 
+
 """
-function savegenodata(outfile::AbstractString,polygeno::PolyGeno;
-    missingstring::AbstractString="NA",
-    workdir::AbstractString = pwd())
-    genodf =getGenodf(polygeno,missingstring=missingstring)
-    outputfile2 = getabsfile(workdir,outfile)
-    CSV.write(outputfile2, genodf; missingstring=missingstring,
-        header=true,append=false)
+function savegenodata(sink::Union{IO,AbstractString},polygeno::PolyGeno;
+    target::AbstractString="all",
+    keepcomment::Bool=true,
+    workdir::AbstractString = pwd(),
+    delim::AbstractChar = ',',
+    commentstring::AbstractString="##",
+    missingstring::AbstractString="NA")    
+    in(target, ["all","founder","parent","offspring"]) || @error string("unknown target=",
+        target, ", target must be in [all, founder, parent, offspring]")
+    delim2 = delim
+    if typeof(sink) <: AbstractString
+        _, ext = split_allext(sink)
+        myopen = ext in [".vcf.gz",".csv.gz"] ? GZip.open : open
+        if ext in [".vcf",".vcf.gz"]
+            delim2 = '\t'
+        elseif ext in [".csv",".csv.gz"]
+            delim2 = ','
+        else
+            @error string("outfile extension = ", ext, ", not .vcf, .vcf.gz, .csv, or .csv.gz")
+        end
+        outputfile2 = getabsfile(workdir,sink)
+        io = myopen(outputfile2, "w")
+    elseif typeof(sink) <: IO
+        io = sink
+    else
+        error(string("unknown sink: ",sink))
+    end
+    isvcf = delim2 == '\t'
+    commentlines = haskey(polygeno.misc,"filecomment") ? split(polygeno.misc["filecomment"][1,:commentlines], "\n") : String[]    
+    # @info "bef" commentlines
+    if isempty(commentlines)
+        commentlines = [commentstring*"fileformat=VCFv4.3", commentstring*"source=PolyOrigin"]
+    else
+        if !startswith(first(commentlines), commentstring*"fileformat")            
+            pushfirst!(commentlines, commentstring*"fileformat=VCFv4.3")
+        end
+        if !any([startswith(i, commentstring*"source") for i in commentlines])
+            insert!(commentlines, 2, commentstring*"source=PolyOrigin")
+        end
+    end       
+    if !any([startswith(i, commentstring*"INFO=<ID=LINKAGEGROUP") for i in commentlines])
+        push!(commentlines, commentstring*"INFO=<ID=LINKAGEGROUP,Number=1,Type=String,Description=\"Linkage group in genetic map\">")
+    end
+    if !any([startswith(i, commentstring*"INFO=<ID=POSCM") for i in commentlines])
+        push!(commentlines, commentstring*"INFO=<ID=POSCM,Number=1,Type=Float,Description=\"Genetic marker position in centiMorgan\">")
+    end    
+    errnamels = ["DOSEERROR","BASEERROR","ALLELICBIAS","OVERDISPERSION"]
+    errnamedesc = ["Dosage error rate","Sequencing base error rate","Sequencing allelic bias","Sequencing overdispersion"]
+    markerdf = isempty(polygeno.markermap) ? nothing : polygeno.markermap[1]
+    for (errorname, errordesc) in zip(errnamels, errnamedesc)
+        colname = lowercase(errorname)
+        ismiss = isnothing(markerdf) ? true : all(ismissing.(markerdf[!,colname]))
+        if !ismiss && !any([startswith(i, commentstring*"INFO=<ID=$(errorname)") for i in commentlines])
+            push!(commentlines, commentstring*"INFO=<ID=$(errorname),Number=1,Type=Float,Description=\"$(errordesc)\">")
+        end
+    end
+    if isempty(polygeno.markermap) 
+        formatls = String[]
+    else
+        formatls = reduce(vcat, [vcat(unique(df[!,:parentformat]), unique(df[!,:offspringformat])) for df in polygeno.markermap])
+        formatls = unique([i[1:2]  for i in formatls])
+    end
+    for format in formatls
+        if !any([startswith(i, commentstring*"FORMAT=<ID=$(format)") for i in commentlines])
+            if format == "GT"
+               des = "Genotype"
+               num = 1
+               ty = "String"
+            elseif format == "AD"
+                des = "Allelic depths for the reference and alternate alleles in the order listed"
+                num = "R"
+                ty = "Integer"
+            elseif format == "GP"
+                des = "Genotype probabilities"
+                num = "G"
+                ty = "Float"
+            else 
+                des = "Genotype format $(format)"
+                num = "."
+                ty = "String"
+                @warn string("unknown genotype format: ",format,", FORMAT=<ID=$(format),Number=$(num),Type=$(ty),Description=\"$(des)\"> is added to commentlines")
+            end               
+            push!(commentlines, commentstring*"FORMAT=<ID=$(format),Number=$(num),Type=$(ty),Description=\"$(des)\">")
+        end
+    end
+    # @info "aft" commentlines
+    keepcomment && write(io,string(join(commentlines,"\n"), "\n"))
+    isunphased_2dosage = !isvcf && all([unique(i[!,:multiallele]) == [2] for i in polygeno.markermap])
+    if isvcf 
+        nmapcol_keep = nothing    
+    else        
+        nmapcol_keep = get_nmapcol_keep(polygeno)    
+    end
+    colnames = geno_colnames(polygeno,isvcf,nmapcol_keep, target)    
+    write(io, join(colnames,delim2),"\n")    
+    nchr = length(polygeno.markermap)
+    for chr in 1:nchr
+        mtx = togenomtx(polygeno, chr; isvcf, isunphased_2dosage, nmapcol_keep, missingstring, target)
+        writedlm(io,mtx,delim2)
+        flush(io)
+    end
+    typeof(sink) <: AbstractString && close(io)
+    sink
 end
 
-function rawDoseCall!(polygeno::PolyGeno; seqerr::Real=0.001)
-    errdigit0 = split(last(split(@sprintf("%.f",seqerr),".")),"")
+
+function get_nmapcol_keep(polygeno::PolyGeno)
+    colnames = names(polygeno.markermap[1])
+    isdelcols = [if col in ["marker", "linkagegroup","poscm","physchrom", "physposbp", "parentformat","offspringformat"]
+        false
+    elseif col in ["alleles","doublereduction"]
+        true 
+    elseif col in ["multiallele"]
+        unique(reduce(vcat, [unique(i[!,col]) for i in polygeno.markermap])) == [2]
+    else
+        all([all(ismissing.(i[!,col])) for i in polygeno.markermap])
+    end for col in colnames]
+    findlast(.!isdelcols)
+end
+
+function geno_colnames(polygeno::PolyGeno,isvcf::Bool,nmapcol_keep, target::AbstractString)
+    if isvcf
+        colnames = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL","FILTER", "INFO", "FORMAT"]
+    else
+        colnames = ["marker", "linkagegroup","poscm","physchrom", "physposbp", "parentformat","offspringformat", 
+            "multiallele", "alleles", "quality", "filter", "info",
+            "doseerror","baseerror","allelicbias", "overdispersion", "doublereduction"]     
+        if !isnothing(nmapcol_keep)  
+            colnames = colnames[1:nmapcol_keep]
+        end
+    end    
+    if !isnothing(polygeno.parentgeno) && in(target,["all","parent","founder"])
+        founderid = copy(polygeno.polyped.parentinfo[!,:individual])
+        if target == "founder"
+            b = polygeno.polyped.parentinfo[!,:isfounder]
+            keepat!(founderid,b)
+        end
+        append!(colnames, founderid)
+    end
+    if !isnothing(polygeno.offspringgeno) && in(target,["all","offspring"])
+        offid = polygeno.polyped.offspringinfo[!,:individual]
+        append!(colnames, offid)
+    end
+    colnames
+end
+
+function togenomtx(polygeno::PolyGeno,chr::Integer;
+    isvcf::Bool,
+    isunphased_2dosage::Bool, 
+    nmapcol_keep, 
+    missingstring::AbstractString="NA",
+    target::AbstractString="all")
+    in(target, ["all","founder", "parent","offspring"]) || @error string("unknown target=",
+        target, ", target must be in [all, founder,parent, offspring]")    
+    parentmtx = nothing
+    if in(target, ["all","parent","founder"])
+        if !isnothing(polygeno.parentgeno)
+            parentmtx = Matrix{Any}(polygeno.parentgeno[chr])
+            if target == "founder"
+                b = polygeno.polyped.parentinfo[!,:isfounder]
+                parentmtx = parentmtx[:,b]
+            end
+            formatls = polygeno.markermap[chr][!,:parentformat]                        
+            inverse_parsegenomtx!(parentmtx,formatls,isvcf,isunphased_2dosage, missingstring)
+        end        
+    end
+    offmtx = nothing
+    calledoffmtx = nothing        
+    if in(target, ["all","offspring"])
+        if !isnothing(polygeno.offspringgeno)
+            offmtx = Matrix{Any}( polygeno.offspringgeno[chr])
+            formatvec = polygeno.markermap[chr][!,:offspringformat]
+            if unique(formatvec) == ["GP"]
+                for i in offmtx
+                    i .= round.(i,digits=4)
+                end
+                calledoffmtx = biallele_gp2gt.(offmtx)
+            end
+            inverse_parsegenomtx!(offmtx,formatvec,isvcf,isunphased_2dosage, missingstring)            
+        end
+    end
+    #  ["marker", "linkagegroup","poscm","physchrom", "physposbp", "parentformat","offspringformat", 
+    #   "multiallele", "alleles", "quality", "filter", "info",
+    #   "doseerror","baseerror","allelicbias","overdispersion"]     
+    mapmtx = Matrix{Any}(polygeno.markermap[chr]);   
+    submapmtx = view(mapmtx,:, vcat([3],_col_1sterr:_col_1stsample-1))    
+    submapmtx .= [ismissing(i) ? i : round(i,digits=8) for i in submapmtx]
+    if isvcf        
+        mapmtx =  tovcfgenomtx!(mapmtx, parentmtx, offmtx,calledoffmtx)
+    else
+        submapmtx = view(mapmtx,:, vcat(1:_col_1stsample-1))
+        submapmtx[ismissing.(submapmtx)] .= missingstring
+        if target == "parent"
+            mapmtx[:, 7] .= missingstring  # offspringformat            
+            mapmtx[:, _col_1sterr:_col_1stsample-1] .= missingstring  # doseerror...overdispersion
+        elseif target == "offspring"            
+            mapmtx[:, 6] .= missingstring  # parentformat            
+        end
+    end    
+    if !isvcf
+        # recover GT_unphased format for input polygeno
+        if isunphased_2dosage
+            for col in [:parentformat, :offspringformat]
+                polygeno.markermap[chr][!,col] .= replace.(polygeno.markermap[chr][!,col], "GT_dosage" =>"GT_unphased")
+            end
+        end
+        if !isnothing(nmapcol_keep)
+            mapmtx = mapmtx[:, 1:nmapcol_keep]
+        end
+    end
+    b = [isnothing(parentmtx),isnothing(offmtx)]
+    if b == [true,true]
+        mapmtx
+    elseif b == [true,false]
+        hcat(mapmtx,offmtx)
+    elseif b == [false,true]
+        hcat(mapmtx,parentmtx)
+    else
+        hcat(mapmtx, parentmtx, offmtx)
+    end
+end
+
+
+function biallele_gp2gt(gp::AbstractVector)
+    i = argmax(gp) -1
+    gt = ones(Int, length(gp)-1) 
+    gt[i+1:end].= 0
+    join(reverse(gt),"/")
+end
+
+
+# modify parentmtx and offspingmtx, return new vcfmapmtx
+function tovcfgenomtx!(mapmtx::AbstractMatrix,
+    parentmtx::Union{Nothing,AbstractMatrix},
+    offspringmtx::Union{Nothing,AbstractMatrix},
+    calledoffspringmtx::Union{Nothing,AbstractMatrix},
+    )    
+    # input mapmtx columns: 
+    #  ["marker", "linkagegroup","poscm","physchrom", "physposbp","parentformat","offspringformat", 
+    #   "multiallele", "alleles", "quality", "filter", "info",
+    #   "doseerror","baseerror","allelicbias","overdispersion"]      
+    # vcfmap colnames = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL","FILTER", "INFO", "FORMAT"]
+    # mid: col4-col9
+    nsnp = size(mapmtx,1)
+    vcfmapmtx = Matrix(undef, nsnp, 9)
+    vcfmapmtx[:,1:3] .= mapmtx[:,[4,5,1]]
+    vcfmapmtx[:,6] .= [ismissing(i) ? "." : i for i in mapmtx[:,10]] # QUAL
+    vcfmapmtx[:,7] .= [ismissing(i) ? "." : i for i in mapmtx[:,11]]  # FILTER       
+    submapmtx = view(vcfmapmtx,:, 1:3)
+    submapmtx[ismissing.(submapmtx)] .= "."
+    isnofounder = isnothing(parentmtx)
+    isnooff = isnothing(offspringmtx)    
+    for snp in 1: nsnp        
+        # set vcf 4-8 columns: "REF","ALT","QUAL","FILTER","INFO"        
+        if ismissing(mapmtx[snp, 9]) # 9 of mapmtx = "alleles"
+            vcfmapmtx[snp,4] = "."
+            vcfmapmtx[snp,5] = "."
+        else            
+            alleles = split(mapmtx[snp, 9],"|") # alleles
+            if !ismissing(mapmtx[snp,8])
+                multiallele = mapmtx[snp,8]
+                if isa(multiallele, AbstractString) 
+                    multiallele = parse(Int, multiallele)
+                end
+                if length(alleles) != multiallele 
+                    @warn string("inconsisent between multiallele=", multiallele, " and alleles=",alleles) maxlog=10
+                end
+            end
+            ref = popfirst!(alleles)
+            alt = join(alleles,",")
+            vcfmapmtx[snp,4] = ref 
+            vcfmapmtx[snp,5] = alt == "NA" ? "." : alt
+        end
+        info = ismissing(mapmtx[snp,12]) ? "." : mapmtx[snp,12]
+        linkagegroup = mapmtx[snp,2]
+        poscm = mapmtx[snp,3]
+        errls = mapmtx[snp, _col_1sterr:_col_1stsample-1]        
+        vcfmapmtx[snp,8] = combine_2_vcfinfo(info, linkagegroup,poscm, errls)        
+        #  set vcf 9th column: "FORMAT"
+        if isnofounder && isnooff
+            vcfmapmtx[snp,9] = "."
+        else
+            # col 6: parentformat, col 7: offspringformat
+            offspringformat = sort(unique([i[1:2] for i in split(mapmtx[snp,7],"&")]))
+            length(offspringformat) > 1 && @warn string("multiple offspringformat=",offspringformat) maxlog=10    
+            if isnofounder
+                # col 7: offspringformat    
+                vcfmapmtx[snp,9] = join(offspringformat,":")
+            else
+                parentformat = sort(unique([i[1:2] for i in split(mapmtx[snp,6],"&")]))
+                genoformat = isnooff ? parentformat : sort(unique(vcat(parentformat,offspringformat)))        
+                length(genoformat) == 2 && genoformat[2] == "GT" && reverse!(genoformat) 
+                vcfmapmtx[snp,9] = join(genoformat,":")
+                # reset genodata
+                nformat = length(genoformat)
+                if nformat > 1 
+                    if !isnooff                        
+                        formatindex = findfirst(==(only(offspringformat)),genoformat)
+                        if isnothing(calledoffspringmtx)
+                            offgenols = view(offspringmtx, snp,:)
+                            for j in eachindex(offgenols)
+                                offgenols[j] = join([i==formatindex ? offgenols[j] : "." for i in 1:nformat],":") 
+                            end
+                        else
+                            offgenols = view(offspringmtx, snp,:)
+                            calledoffgenols = view(calledoffspringmtx, snp,:)
+                            for j in eachindex(offgenols,calledoffgenols)
+                                offgenols[j] = join([if i==formatindex 
+                                    offgenols[j] 
+                                elseif genoformat[i] == "GT" 
+                                    calledoffgenols[j] 
+                                else
+                                    "." 
+                                end for i in 1:nformat],":") 
+                            end
+                        end                        
+                    end
+                    parentgenols = view(parentmtx, snp,:)
+                    if length(genoformat) == 2 
+                        if genoformat[1] == "GT" 
+                            parentgenols .= [(occursin("|",i) || occursin("/",i)) ? string(i,":.") : string(".:",i) for i in parentgenols]
+                        elseif genoformat[2] == "GT" 
+                            parentgenols .= [(occursin("|",i) || occursin("/",i)) ? string(".:",i) : string(i,":.") for i in parentgenols]
+                        elseif genoformat[1] == "AD" && in(genoformat[2],["GP","GL"])
+                            parentgenols .= [(occursin(",",i) && occursin(".",i)) ? string(".:",i) : string(i,":.") for i in parentgenols]
+                        else
+                            @error string("TODO for genoformat=",genoformat)
+                        end
+                    else
+                        @error string("TODO for genoformat=",genoformat)
+                    end
+
+                end
+            end
+        end
+    end
+    # VCFv4.3 requires that REF must be one of A, T, G, C, N
+    vcfmapmtx[vcfmapmtx[:,4] .== ".",4] .= "N" 
+    vcfmapmtx
+end
+
+
+function combine_2_vcfinfo(info::AbstractString, linkagegroup, poscm, errls::AbstractVector)    
+    oldinfo = ""
+    if !ismissing(linkagegroup)
+        oldinfo *= string(";LINKAGEGROUP=",linkagegroup)
+    end
+    if !ismissing(poscm)
+        oldinfo *= string(";POSCM=",poscm)
+    end
+    errnamels = ["DOSEERROR", "BASEERROR", "ALLELICBIAS","OVERDISPERSION"]
+    for j in eachindex(errls,errnamels)
+        if !ismissing(errls[j])
+            oldinfo *= string(";", errnamels[j], "=", errls[j])
+        end
+    end
+    oldinfo =lstrip(oldinfo, ';')
+    if isempty(oldinfo)
+        info
+    else
+        info == "." ? oldinfo : string(oldinfo,";", info)
+    end    
+end
+
+function rawDoseCall!(polygeno::PolyGeno; baseerror::Real=0.001)
+    errdigit0 = split(last(split(@sprintf("%.f",baseerror),".")),"")
     errdigit2=findfirst(x->x!="0",errdigit0)
     errdigit = isnothing(errdigit2) ? 6 : max(4,errdigit2+1)
     if kindofgeno(polygeno.parentgeno) == "readcount"
-        ploidyls = polygeno.parentinfo[!,:ploidy]
-        polygeno.parentgeno = [calreadpostprob(i,ploidyls,seqerr,digits=errdigit) for i=polygeno.parentgeno]
+        ploidyls = polygeno.polyped.parentinfo[!,:ploidy]
+        polygeno.parentgeno = [calpostprob_AD(i,ploidyls,baseerror,digits=errdigit) for i=polygeno.parentgeno]
     end
     if kindofgeno(polygeno.offspringgeno) == "readcount"
-        ploidyls = polygeno.offspringinfo[!,:ploidy]
-        polygeno.offspringgeno = [calreadpostprob(i,ploidyls,seqerr,digits=errdigit+2) for i=polygeno.offspringgeno]
+        ploidyls = polygeno.polyped.offspringinfo[!,:ploidy]
+        polygeno.offspringgeno = [calpostprob_AD(i,ploidyls,baseerror,digits=errdigit+2) for i=polygeno.offspringgeno]
     end
     polygeno
 end
 
-function getchrid(polygeno::PolyGeno)
-    [i[1,:chromosome] for i=polygeno.markermap]
-end
-
-function getsubPolyGeno!(polygeno::PolyGeno;
+function getsubpolygeno!(polygeno::PolyGeno;
         chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
         snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
     markermap = polygeno.markermap
@@ -524,7 +733,7 @@ function getsubPolyGeno!(polygeno::PolyGeno;
     polygeno
 end
 
-function getsubPolyGeno(polygeno::PolyGeno;
+function getsubpolygeno(polygeno::PolyGeno;
         chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
         snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
     markermap = polygeno.markermap
@@ -535,10 +744,272 @@ function getsubPolyGeno(polygeno::PolyGeno;
     snpsubsetlist = [snpsubset2[snpsubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
     markermap= map((x,y)->markermap[x][y,:],chrsubset2,snpsubsetlist)
     parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,snpsubsetlist)
-    offgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,snpsubsetlist)
-    parentinfo=deepcopy(polygeno.parentinfo)
-    offinfo = deepcopy(polygeno.offspringinfo)
-    designinfo = deepcopy(polygeno.designinfo)
-    PolyGeno(markermap,parentgeno,offgeno,parentinfo,offinfo,designinfo,
-        deepcopy(polygeno.delmarker),deepcopy(polygeno.correction))
+    offgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,snpsubsetlist)        
+    PolyGeno(deepcopy(polygeno.polyped), markermap,parentgeno,offgeno,deepcopy(polygeno.misc))
+end
+
+function filterdepth_AD!(polygeno::PolyGeno; 
+    mindepth_parent::Integer=10,
+    mindepth_offspring::Integer=10,
+    maxmiss_parent::Real=0.5,
+    maxmiss_offspring::Real=0.5)
+    nchr = length(polygeno.markermap)
+    for chr in 1:nchr
+        # parents
+        chrdepths = [ismissing(i) ? 0 : sum(i) for i in polygeno.parentgeno[chr]];
+        sumdepthls = sum(chrdepths,dims=2)[:,1] 
+        nind = size(chrdepths,2)        
+        bls_parent = (sumdepthls ./ nind) .>= mindepth_parent
+        bls_parent_miss = mean(sumdepthls .== 0) .<= maxmiss_parent
+        # offspring
+        chrdepths = [ismissing(i) ? 0 : sum(i) for i in polygeno.offspringgeno[chr]]
+        sumdepthls = sum(chrdepths,dims=2)[:,1] 
+        nind = size(chrdepths,2)        
+        bls_off = (sumdepthls ./ nind) .>= mindepth_offspring
+        bls_off_miss = mean(sumdepthls .== 0) .<= maxmiss_offspring
+        bls = bls_parent .&& bls_off .&& bls_parent_miss .&& bls_off_miss
+        polygeno.markermap[chr] = polygeno.markermap[chr][bls,:]
+        polygeno.parentgeno[chr] = polygeno.parentgeno[chr][bls,:]
+        polygeno.offspringgeno[chr] = polygeno.offspringgeno[chr][bls,:]
+    end
+    polygeno
+end
+
+function filtermissing_GT!(polygeno::PolyGeno;     
+    maxmiss_parent::Real=0.5,
+    maxmiss_offspring::Real=0.5)
+    nchr = length(polygeno.markermap)
+    for chr in 1:nchr
+        # parents
+        chrmissing = [ismissing(i) ? 1 : occursin(".",i) ? 1 : 0 for i in polygeno.parentgeno[chr]];
+        nind = size(chrmissing,2)        
+        missls = sum(chrmissing,dims=2)[:,1] ./ nind
+        bls_parent_miss = missls .<= maxmiss_parent
+        # offspring
+        chrmissing = [ismissing(i) ? 1 : occursin(".",i) ? 1 : 0 for i in polygeno.offspringgeno[chr]];
+        nind = size(chrmissing,2)        
+        missls = sum(chrmissing,dims=2)[:,1] ./ nind
+        bls_off_miss = missls .<= maxmiss_offspring
+        # 
+        bls = bls_parent_miss .&& bls_off_miss
+        polygeno.markermap[chr] = polygeno.markermap[chr][bls,:]
+        polygeno.parentgeno[chr] = polygeno.parentgeno[chr][bls,:]
+        polygeno.offspringgeno[chr] = polygeno.offspringgeno[chr][bls,:]
+    end
+    polygeno
+end
+
+function delmonomarker!(polygeno::PolyGeno)
+    isparentphased = all([unique(i[!,:parentformat]) == ["GT_phased"] for i in polygeno.markermap])
+    if !isparentphased 
+        @warn "some parental genotypes are not phased; filtermono! works only when all parent are phased"
+        return polygeno
+    end
+    for chr in eachindex(polygeno.markermap)
+        # parents
+        ispolyls = [length(unique(reduce(vcat,skipmissing(i)))) > 1 for i  in eachrow(polygeno.parentgeno[chr])]
+        if !any(ispolyls)
+            @warn "no polymorphic markers!"
+            @info "" chr polygeno.parentgeno[chr]
+        end
+        polygeno.markermap[chr] = polygeno.markermap[chr][ispolyls,:]
+        polygeno.parentgeno[chr] = polygeno.parentgeno[chr][ispolyls,:]        
+        if !isnothing(polygeno.offspringgeno)
+            polygeno.offspringgeno[chr] = polygeno.offspringgeno[chr][ispolyls,:]
+        end
+    end
+    polygeno
+end
+
+function readpolygeno(polygenofile::AbstractString;
+    delim::AbstractChar=',',    
+    commentstring::AbstractString="##",
+    workdir::AbstractString=pwd())
+    polygenofile2=getabsfile(workdir,polygenofile)    
+    # issparse = true, CSV.read is used to parse string, when cells with too long string will be truncated
+    res = readmultitable(polygenofile2; delim,commentstring,isparse=true)    
+    haskey(res, "genodata") || error(string("key genodata is not in ", keys(res)))
+    genodf = res["genodata"]            
+    haskey(res, "pedigree") || error(string("key genodata is not in ", keys(res)))  
+    ped = Pedigree(res["pedigree"])        
+    polyped = PolyPed(ped)
+    polygeno = formpolygeno!(genodf,polyped; isphysmap=false)
+    misc = Dict{String, DataFrame}()
+    for (key,val) in res
+        if key[1:5]=="misc|"                         
+            push!(misc, key[6:end]=>val)            
+        end
+    end
+    polygeno.misc = misc
+    polygeno
+end
+
+
+"""
+    savepolygeno(outfile,polygeno,workdir=pwd(),delim=',')
+
+save genotypic data of polygeno::PolyGeno into outfile
+
+# Positional arguments
+
+`outfile::AbstractString`: filename for saving results.
+
+`polygeno::PolyGeno`: a struct returned by [`formpolygeno`](@ref).
+
+# Keyward arguments
+
+`missingstring::AbstractString = "NA"`: string for missing values
+`workdir::AbstractString = pwd()`: directory for writing outfile.
+
+`delim::AbstractChar=','`: delimitor character
+
+"""
+function savepolygeno(sink::Union{IO,AbstractString},polygeno::PolyGeno;
+    missingstring::AbstractString = "NA",    
+    workdir::AbstractString = pwd(),
+    delim::AbstractChar = ',')
+    if typeof(sink) <: AbstractString
+        ext = last(splitext(sink))
+        myopen = ext == ".gz" ? GZip.open : open
+        outputfile2 = getabsfile(workdir,sink)
+        io = myopen(outputfile2, "w")
+    elseif typeof(sink) <: IO
+        io = sink
+    else
+        error(string("unknown sink: ",sink))
+    end
+    initial = "PolyOrigin"
+    write(io,initial,delim,"pedigree","\n")
+    savepolyped(io,polygeno.polyped; workdir,delim)
+    write(io,initial,delim,"genodata","\n")
+    savegenodata(io,polygeno; keepcomment=false,missingstring, workdir,delim)
+    misc = polygeno.misc
+    if !isempty(misc)
+        for (key,val) in misc
+            key == "filecomment" && continue         
+            write(io,initial,delim,string("misc|",key),"\n")
+            CSV.write(io,val; header=true,append=true,delim)    
+        end
+    end
+    flush(io)
+    typeof(sink) <: AbstractString && close(io)
+    sink
+end
+
+
+
+function fill_parent_missing!(polygeno::Union{PolyGeno, PolyAncestry})
+    for chr in eachindex(polygeno.markermap)
+        fill_parent_missing!(polygeno,chr)
+    end
+    nothing
+end
+
+function fill_parent_missing!(polygeno::Union{PolyGeno, PolyAncestry},chr::Integer)    
+    ploidyls = polygeno.polyped.parentinfo[!,:ploidy]
+    chrpgeno = polygeno.parentgeno[chr]
+    # chrmultiallele = polygeno.markermap[chr][!,:multiallele]
+    # ["GT_dosage","GT","GT_unphased","GT_phased","AD","GL","GP","AD&GT","GP&GT","GL&GT"]
+    chrparentformat = polygeno.markermap[chr][!,:parentformat]
+    formatls = ["GT", "GT_unphased","GT_phased","AD","AD&GT","GP&GT","GL&GT"]    
+    intersect!(formatls, unique(chrparentformat))
+    for p in eachindex(ploidyls)
+        ploidy = ploidyls[p]
+        for format in formatls
+            b = chrparentformat .== format .&& ismissing.(chrpgeno[:, p])
+            any(b) || continue
+            if in(format, ["GT_unphased","GT","AD&GT","GP&GT","GL&GT"])
+                misscode = join(repeat(["N"],ploidy),"/")
+                chrpgeno[b, p] .= misscode
+            elseif format == "GT_phased"
+                misscode = join(repeat(["N"],ploidy),"|")                
+                chrpgeno[b, p] .= [misscode for _ in 1:sum(b)]            
+            else
+                0
+            end
+        end        
+    end
+    nothing
+end
+
+
+
+function info_polygeno(polygeno::PolyGeno;
+    io::Union{Nothing,IO}=nothing,
+    verbose::Bool=true)
+    genolen = sum([i[end,:poscm] - i[1,:poscm] for i in polygeno.markermap])
+    physlen = sum([i[end,:physposbp] - i[1,:physposbp] for i in polygeno.markermap])
+    isfounder = polygeno.polyped.parentinfo[!,:isfounder]
+    msg = string("#pop=", size(polygeno.polyped.designinfo,1))
+    if all(isfounder)
+        msg *= string(", #parent=",sum(isfounder))
+    else
+        msg *= string(", #founder=",sum(isfounder),", #midparent=",sum(.!isfounder))
+    end
+    msg *= string(", #offspring=",size(polygeno.polyped.offspringinfo,1),                
+            ", #chr=",length(polygeno.markermap),        
+            ", #marker=",sum(size.(polygeno.markermap,1)))
+    ismissing(genolen) || (msg *= string(", genolen=", round(genolen, digits=1), "cM"))
+    ismissing(physlen) || (msg *= string(", physlen=", round(1e-6 * physlen, digits=1), "Mbp"))
+    printconsole(io,verbose,msg)
+end
+
+function get_genoformat(polygeno::PolyGeno; isparentformat::Bool)
+    col = isparentformat ? :parentformat : :offspringformat
+    unique(reduce(vcat, [unique(i[!, col]) for i in polygeno.markermap]))
+end
+
+function rename_samples(genofile::AbstractString,pedfile::AbstractString; 
+    issavefhaplo::Bool=false,   
+    workdir::AbstractString=pwd(), outstem::AbstractString="outstem")
+    polygeno = formpolygeno(genofile,pedfile)
+    ped2 = renameped(polygeno.polyped.ped)
+    polygeno.polyped = PolyPed(ped2)    
+    if issavefhaplo
+        genofile2 = abspath(workdir, outstem*"_rename_fhaplo.vcf.gz")
+    else
+        genofile2 = abspath(workdir, outstem*"_rename_geno.vcf.gz")
+    end    
+    pedfile2 = abspath(workdir, outstem*"_rename_ped.csv")    
+    saveped(pedfile2, polygeno.polyped.ped)
+    savegenodata(genofile2, polygeno; target = issavefhaplo ? "founder" : "all")
+    genofile2,pedfile2
+end
+
+
+
+
+function disturbmap!(polygeno::PolyGeno; disturbjump::Integer=0, disturbstd::Real=0)
+    disturbjump == 0 && disturbstd ≈ 0.0 && return polygeno
+    for chr = eachindex(polygeno.markermap)
+        df = polygeno.markermap[chr]
+        nmarker = size(df, 1)
+        bef = collect(1:nmarker)
+        if disturbstd ≈ 0.0
+            aft = bef
+        else
+            noise = rand(Normal(0,disturbstd),nmarker)
+            aft = sortperm(bef .+ noise)
+        end
+        if disturbjump > 0             
+            nhalf = div(nmarker,2)
+            nhalf <= disturbjump && @warn string("disturbjump=",disturbjump, ", greater than nhalf=",nhalf, " in chr=",chr)
+            disturbjump2 = nhalf <= disturbjump ? nhalf : disturbjump
+            leftls = sample(1:nhalf,disturbjump2; replace=false)
+            rightls = sample((nhalf+1):nmarker,disturbjump2; replace=false)
+            leftls2 = copy(aft[leftls])
+            rightls2 = copy(aft[rightls])
+            aft[leftls] .= rightls2
+            aft[rightls] .= leftls2
+        end
+        # change markermap
+        poscmls = copy(df[!,:poscm])
+        df2 = df[aft,:]
+        df2[!,:poscm] .= poscmls
+        polygeno.markermap[chr] = df2
+        # change geno
+        polygeno.parentgeno[chr] .= polygeno.parentgeno[chr][aft, :]
+        polygeno.offspringgeno[chr] .= polygeno.offspringgeno[chr][aft, :]
+    end
+    polygeno
 end

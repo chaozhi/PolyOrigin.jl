@@ -4,18 +4,18 @@ CurrentModule = PolyOrigin
 
 # PolyOrigin.jl
 
-**Haplotype reconstruction in connected polyploid F1 populations**
+**Haplotype reconstruction in multi-generation tetraploid (or diploid) pedgrees**
 
 ## Features
 
-- Apply to connected polyploid (2x, 4x, or 6x) F1 crosses
+- Apply to multi-generation pedigrees, including connected F1 populations
 - Apply to SNP array and GBS data
-- Robust to dosage errors in SNP array data
-- Robust to dosage uncertainties in low coverage GBS data
-- Robust to errors in input genetic or physical map
+- Allow for input map being physical map
+- Account for dosage errors in SNP array data
+- Account for allelic bais and over-dispersion in sequence data
 
 ## Installation
-From the julia (>v1.10.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
+From the julia (>v1.11.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl
@@ -25,4 +25,6 @@ add https://github.com/chaozhi/PolyOrigin.jl
 
 If you use PolyOrigin in your analyses and publish your results, please cite the article:
 
- *Zheng C, Amadeu RR, Munoz PR, and Endelman JB. 2021. Haplotype reconstruction in connected tetraploid F1 populations. https://doi.org/10.1093/genetics/iyab106
+xx
+
+

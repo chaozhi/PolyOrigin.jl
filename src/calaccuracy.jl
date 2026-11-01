@@ -1,215 +1,194 @@
 
-
 """
-    readTruegeno!(truefile,polyancestry, keyargs...)
+    calaccuracy!(truegenofile,trueorigfile, polyest,workdir=pwd(),verbose=true)
 
-returned truegeno of NamedTuple with truegeno.parentgeno storing phased parental genotypes,
-and truegeno.offspringgeno storing true parental origins. `polyancestry` is modified
-(1) extra markers in truefile are put into polyancestry.delmarker, (2)
-absolute phase of polyancestry.parentgeno is set according to truegeno.parentgeno,
-and (3) polyancestry.genoprob and polyancestry.haploprob are set to be consistent
-with the absolute phase.
+calculate inference accuracies according to the true values in `truegenofile` and `trueorigfile` . 
+`joinedancestry` is modified with absolute phases and consistent genoprob.
 
 # Positional arguments
 
-`truefile::AbstractString`: file storing true values, which has the same requirement
-as the `genofile`. The parental genotypes must be given in the `phasedgeno`  format
-with alleles being "1" and "2". The offspring origin-genotypes must be given in the
-`phasedgeno`  format with allels being parental homologs.
+`truegenofile::AbstractString`: a file for true genotypes
 
-`polyancestry::PolyAncestry`: for checking the consistency of marker IDs,
-chromosome IDs, and individual IDs.
+`trueorigfile::AbstractString`: a file for true ancestral origins 
 
-# Keyword arguments
-
-`delimchar::AbstractChar=','`:  text delimiter.
-
-`commentstring::AbstractString="#"`: rows that begins with commentstring will be ignored.
-
-`workdir::AbstractString = pwd()`: directory for reading truevalue file.
-
-"""
-function readTruegeno!(truefile::AbstractString,polyancestry::PolyAncestry;
-    delimchar::AbstractChar=',',
-    missingstring::AbstractString="NA",
-    commentstring::AbstractString="#",
-    workdir::AbstractString=pwd())
-    truefile2 =getabsfile(workdir,truefile)
-    isfile(truefile2) || @error(string(truefile," does not exist in workdir = ",workdir))
-    setAbsPhase!(truefile2,polyancestry, workdir=workdir,
-        delim=delimchar,comment=commentstring,verbose=false)
-    truedf=CSV.read(truefile2,DataFrame; delim=delimchar,comment=commentstring,missingstring=missingstring)
-    for i=1:2
-        truedf[!,i] =string.(strip.(string.(truedf[!,i])))
-    end
-    # marker indices
-    dict=Dict(truedf[!,1] .=> 1:size(truedf,1))
-    vcatmap = vcat(polyancestry.markermap...)
-    iimarker=[get(dict,i,missing) for i=vcatmap[!,:marker]]
-    bool=ismissing.(iimarker)
-    any(bool) && @error string("markers that are not in truevalue file: ",truedf[iimarker[bool],1])
-    # vcatmap[!,:marker] == truedf[iimarker,1]
-    # check chromosome
-    if strip.(vcatmap[!,:chromosome]) != truedf[iimarker,2]
-        @error string("inconsistent chromosome between polyancestry and truefile")
-    end
-    # push extra markers of truedef into polyancestry.delmarker
-    del=setdiff(1:size(truedf,1),iimarker)
-    if !isempty(del)
-        deldf = deepcopy(truedf[del,1:3])
-        deldf = parsemarkermap!(deldf)
-        b=[!in(i,polyancestry.delmarker[!,:marker]) for i=deldf[!,:marker]]
-        polyancestry.delmarker =vcat(polyancestry.delmarker,deldf[b,:])
-    end
-    # get ind dict
-    ind=string.(strip.(string.(names(truedf))))
-    length(ind) < 5 && @error string("At least 5 coloumns are required")
-    ind=ind[4:end]
-    dict=Dict(ind .=> 1:size(ind,1))
-    # parent indices
-    jjparent=[get(dict,i,missing) for i=polyancestry.parentinfo[!,:individual]]
-    bool=ismissing.(jjparent)
-    any(bool) && @error string("offspring that are not in truevalue file: ",ind[jjparent[bool]])
-    jjparent2=vcat(1:3,jjparent .+ 3)
-    parentdf = truedf[iimarker,jjparent2]
-    parentphase = [Matrix(i[!,4:end]) for i=groupby(parentdf,2)]
-    parentphase2=[map(x->tryparse.(Int,replace(strip.(x),missingstring=>"-1")),split.(string.(i),"|")) for i=parentphase]
-    parentphase3 = [replace.(i,-1=>missing) for i=parentphase2]
-    # offsprign indices
-    jjoff=[get(dict,i,missing) for i=polyancestry.offspringinfo[!,:individual]]
-    bool=ismissing.(jjoff)
-    any(bool) && @error string("offspring that are not in truevalue file: ",ind[jjoff[bool]])
-    jjoff2=vcat(1:3,jjoff .+ 3)
-    offdf = truedf[iimarker,jjoff2]
-    offorig = [Matrix(i[!,4:end]) for i=groupby(offdf,2)]
-    offorig2=[map(x->tryparse.(Int,replace(strip.(x),missingstring=>"-1")),split.(string.(i),"|")) for i=offorig]
-    offorig3 = [replace.(i,-1=>missing) for i=offorig2]
-    # markermap
-    inputdf = rename(truedf[!,1:3],[:marker,:chromosome,:position])
-    truemap=[DataFrame(i) for i=groupby(inputdf[!,1:3],2)]
-    estmap=[DataFrame(i) for i=groupby(inputdf[iimarker,1:3],2)]
-    (truemap=truemap,estmap=estmap,parentgeno=parentphase3,offspringgeno = offorig3)
-end
-
-function calparentacc(trueparentgeno::AbstractVector,estparentgeno::AbstractVector)
-    if !all(size.(trueparentgeno) .== size.(estparentgeno))
-        @error string("inconsistent size between true and estimated parentgeno")
-    end
-    d = trueparentgeno .- estparentgeno
-    d2=[sum.(map(x->abs.(x),i)) for i=d]
-    nalleleerr = sum([sum(skipmissing(i)) for i=d2])
-    nphaseerr = sum([sum(skipmissing(i .> 0)) for i=d2])
-    ndoseerr=sum(map((x,y)->sum(skipmissing(sum.(x) .!= sum.(y))),trueparentgeno,estparentgeno))
-    nparentgeno = sum([sum(.!ismissing.(i)) for i=d2])
-    (ndoseerr=ndoseerr,nphaseerr=nphaseerr,nalleleerr=nalleleerr,nparentgeno=nparentgeno)
-end
-
-function toindexancestry(trueoffgeno::AbstractVector, polyancestry::PolyAncestry)
-    trueancestry = [sort.(i) for i=trueoffgeno]
-    ancestry = [Matrix{Union{Int,Missing}}(missing,size(i)) for i=trueoffgeno]
-    popls = polyancestry.designinfo[!,:population]
-    nchr=length(trueancestry)
-    for popid=popls
-        gs = polyancestry.statespace[popid]["groupstate"]
-        rule = Dict(gs .=> 1:length(gs))
-        offls = findall(polyancestry.offspringinfo[!,:population] .== popid)
-        for chr=1:nchr
-            ancestry[chr][:,offls]=[get(rule,i, missing) for i=trueancestry[chr][:,offls]]
-        end
-    end
-    # if any([ismissing.(i) for i=ancestry]...)
-    #     wrong=unique(vcat([trueoffgeno[chr][ismissing.(ancestry[chr])] for chr=1:nchr]...))
-    #     @info string("ancestry missing code: ", wrong)
-    # end
-    ancestry
-end
-
-function calancestryacc(trueoffgeno::AbstractVector, polyancestry::PolyAncestry)
-    estgenoprob=polyancestry.genoprob
-    trueoffancestry=toindexancestry(trueoffgeno,polyancestry)
-    nchr = length(trueoffancestry)
-    assignerr = [begin
-        nsnp,noff = size(trueoffancestry[chr])
-        acc = [begin
-            trueanc = trueoffancestry[chr][:,off]
-            prob = estgenoprob[chr][off]
-            mls=findall(.!ismissing.(trueanc))
-            isempty(mls) ? missing : mean([prob[m,trueanc[m]] for m=mls])
-        end for off=1:noff]
-        1-mean(skipmissing(acc))
-    end for chr=1:nchr]
-    # ancestrycall in polyreconstruct.jl
-    doseprob = ancestrycall(estgenoprob,minprob=0.0)
-    callerr=[begin
-        nnonmiss=length(trueoffancestry[chr]) - sum(ismissing.(trueoffancestry[chr]))
-        1.0-sum(doseprob[chr] .=== trueoffancestry[chr])/nnonmiss
-    end for chr=1:nchr]
-    (assignerr=round(mean(assignerr),sigdigits=6),callerr=round(mean(callerr),sigdigits=6))
-end
-
-function calabsaccuracy0(truegeno::NamedTuple,polyancestry::PolyAncestry)
-    parentacc = calparentacc(truegeno.parentgeno,polyancestry.parentgeno)
-    offacc=calancestryacc(truegeno.offspringgeno,polyancestry)
-    ndel =size(polyancestry.delmarker,1)
-    nrest = sum(size.(polyancestry.markermap,1))
-    fdel = ndel/(ndel+nrest)
-    fdel=round(fdel,sigdigits=6)
-    merge(parentacc,offacc,(delfraction=fdel,))
-end
-
-"""
-    calAccuracy!(truefile,polyancestry,workdir=pwd(),io=nothing,verbose=true)
-
-calculate phasing and ancestral inference accuracies accoring to the true values in
-`truefile`. The `polyancestry` is modified with absolute parental phases and
-consistent genoprob.
-
-# Positional arguments
-
-`truefile::AbstractString`: contains true values for parental phases and
-ancestral genotypes.
-
-`polyancestry::PolyAncestry`: a struct returned by [`polyOrigin`](@ref).
+`joinedancestry::JoinedPolyAncestry`: estimated by `polyorigin`. 
 
 # Keyward arguments
 
 `workdir::AbstractString = pwd()`: directory for writing outfile.
 
-`io::Union{Nothing,IOStream}`: stream for writing log.
-
 `verbose::Bool=true`: true if print messages on console.
 
 """
-function calAccuracy!(truefile::AbstractString,polyancestry::PolyAncestry;
+function calaccuracy!(truegenofile::AbstractString, trueorigfile::AbstractString,
+    joinedancestry::JoinedPolyAncestry; 
     workdir::AbstractString=pwd(),
-    io::Union{Nothing,IOStream}=nothing,verbose::Bool=true)
-    truegeno = readTruegeno!(truefile,polyancestry,workdir=workdir)
-    calAccuracy!(truegeno,polyancestry)
+    verbose::Bool=false)
+    truegeno = readtruegeno(truegenofile,joinedancestry.polyped.ped; workdir,verbose)        
+    alignchromosome!(truegeno,joinedancestry) 
+    res_marker = calmarkersum(truegeno,joinedancestry)    
+    alignmarker!(truegeno,joinedancestry) # afterward, same sets of markers    
+    res_pacc = calparentacc(truegeno,joinedancestry)
+    res_offacc = caloffspring_phaseacc(truegeno,joinedancestry)    
+    trueorig = readtruegeno!(trueorigfile,joinedancestry; workdir,verbose)        
+    res_orig = calviterbiacc(trueorig,joinedancestry)
+    OrderedDict(vcat(res_marker, res_pacc,res_offacc, res_orig))
 end
 
-"""
-    calAccuracy!(truegeno,polyancestry,io=nothing,verbose=true)
-
-calculate phasing and ancestral inference accuracies accoring to the true values in
-`truegeno`. The `polyancestry` is modified with absolute parental phases and
-consistent genoprob.
-
-# Positional arguments
-
-`truegeno::NamedTuple`: contains true values for parental phases and
-ancestral genotypes, returned by [`readTruegeno!`](@ref).
-
-`polyancestry::PolyAncestry`: a struct returned by [`polyOrigin`](@ref).
-
-# Keyward arguments
-
-`io::Union{Nothing,IOStream}`: stream for writing log.
-
-`verbose::Bool=true`: true if print messages on console.
-
-"""
-function calAccuracy!(truegeno::NamedTuple, polyancestry::PolyAncestry;
-    io::Union{Nothing,IOStream}=nothing,verbose::Bool=true)
-    setabsphase0!(truegeno.parentgeno,polyancestry,io=io,verbose=verbose)
-    calabsaccuracy0(truegeno,polyancestry)
+function calmarkersum(truegeno::PolyGeno, polyest::JoinedPolyAncestry)
+    truesnps = reduce(vcat, [i[!,:marker] for i in truegeno.markermap])
+    estsnps =  reduce(vcat,[i[!,:marker] for i in polyest.markermap])
+    # nmarkertrue: #markers in truegeno
+    # nmarkerdel: #markers in truegeno but not in magicest
+    nmarkertrue = length(truesnps)
+    nmarkerdel = length(setdiff(truesnps, estsnps))
+    ["markersum" => (nmarkertrue=nmarkertrue, nmarkerdel=nmarkerdel)]
 end
+
+
+function readtruegeno!(truegenofile::AbstractString, polyest::Union{PolyGeno,PolyAncestry,JoinedPolyAncestry};
+    workdir=pwd(), 
+    verbose::Bool=false)    
+    truegeno = readtruegeno(truegenofile,polyest.polyped.ped; workdir,verbose)        
+    alignchromosome!(truegeno,polyest) 
+    alignmarker!(truegeno,polyest) # afterward, same sets of markers
+    truegeno
+end
+
+function readtruegeno(truegenofile::AbstractString, ped::Pedigree; 
+    workdir=pwd(), 
+    verbose::Bool=false)
+    tempid = tempname(workdir)
+    temppedfile = string(tempid,"_ped.csv")
+    try     
+        PolyOrigin.saveped(temppedfile,ped)
+        PolyOrigin.check_infiles(truegenofile,temppedfile; workdir, verbose)            
+        truegeno = PolyOrigin.formpolygeno(truegenofile,temppedfile; delmultiallelic=false, formatpriority=["GT"]);
+        for chr in eachindex(truegeno.markermap)
+            truegeno.parentgeno[chr] .= [parse.(Int,i) for i in truegeno.parentgeno[chr]]
+            truegeno.offspringgeno[chr] .= [parse.(Int,i) for i in truegeno.offspringgeno[chr]]
+        end 
+        truegeno
+    finally
+        rm(temppedfile, force=true)
+    end    
+end
+
+
+function alignchromosome!(truegeno::PolyGeno,polyest::Union{PolyGeno,PolyAncestry,JoinedPolyAncestry})
+    truechrls = [i[1,:linkagegroup] for i in truegeno.markermap]
+    estchrls =  [i[1,:linkagegroup] for i in polyest.markermap]
+    truechrls == estchrls && return nothing
+    if issubset(estchrls,truechrls)
+        chrsubset = [findfirst(==(i),truechrls) for i in estchrls]
+        getsubpolygeno!(truegeno; chrsubset)
+    else
+        error("estchrls = ", estchrls, " not subset of truechrls = ", truechrls)
+    end
+    nothing
+end
+
+
+
+function alignmarker!(truegeno::PolyGeno, polyest::Union{PolyGeno,PolyAncestry,JoinedPolyAncestry})
+    for chr in eachindex(truegeno.markermap)                
+        snpidls = truegeno.markermap[chr][!,:marker]
+        estsnpidls = polyest.markermap[chr][!,:marker]
+        if snpidls  != estsnpidls
+            rule = Dict(snpidls .=> 1:length(snpidls))
+            ii = [get(rule, i, missing) for i in estsnpidls]
+            ii2 = collect(skipmissing(ii))                
+            truegeno.markermap[chr] = truegeno.markermap[chr][ii2,:]
+            truegeno.parentgeno[chr] = truegeno.parentgeno[chr][ii2,:]
+            truegeno.offspringgeno[chr] = truegeno.offspringgeno[chr][ii2,:]
+            nonmissls = .!ismissing.(ii)
+            if !all(nonmissls)                    
+                polyest.markermap[chr] = polyest.markermap[chr][nonmissls, :]
+                polyest.parentgeno[chr] = polyest.parentgeno[chr][nonmissls, :]
+                if isa(polyest,PolyGeno)
+                    polyest.offspringgeno[chr] = polyest.offspringgeno[chr][nonmissls, :]
+                else
+                    # viterbipath[chr][:,offspring]: most probably path for offspring at chr.
+                    polyest.viterbipath[chr] = polyest.viterbipath[chr][nonmissls, :]
+                    polyest.parentviterbipath[chr] = polyest.parentviterbipath[chr][nonmissls, :]
+                    for condprob in [polyest.diploprob,polyest.genoprob,polyest.haploprob]
+                        if !isnothing(condprob)
+                            chrprob = condprob[chr]
+                            for o in eachindex(chrprob)
+                                chrprob[o] = chrprob[o][nonmissls,:]
+                            end   
+                        end
+                    end                       
+                end
+            end            
+        end       
+    end 
+    truegeno, polyest
+end
+
+
+function calparentacc(truegeno::PolyGeno,polyest::Union{PolyGeno, JoinedPolyAncestry})    
+    df = PolyOrigin.calphaseerr(truegeno.parentgeno,polyest)
+    isfls = polyest.polyped.parentinfo[!,:isfounder]
+    nf = length(isfls)
+    accls = df[1:nf,:allchr]
+    keyls = keys(first(accls))
+    acc_f = sum([[values(i)...] for i in accls[isfls]])
+    res = ["founder_phasing" => (;zip(keyls,acc_f)...)]
+    if !all(isfls)
+        acc_midp = sum([[values(i)...] for i in accls[.!isfls]])
+        push!(res, "midparent_phasing" => (;zip(keyls,acc_midp)...))
+    end
+    res
+end
+
+function calviterbiacc(truegeno::PolyGeno, polyest::JoinedPolyAncestry)
+    acc = calviterbiacc(truegeno.offspringgeno, polyest.viterbipath; ismidparent=false)
+    ismidpls = .!polyest.polyped.parentinfo[!,:isfounder]
+    if any(ismidpls)
+        truegenols  = [chrgeno[:,ismidpls] for chrgeno in truegeno.parentgeno]
+        viterbigenols = [chrviterbi[:,ismidpls] for chrviterbi in polyest.parentviterbipath]
+        parentacc = calviterbiacc(truegenols, viterbigenols; ismidparent=true)
+        acc = vcat(parentacc,acc)
+    end
+    acc
+end
+
+function calviterbiacc(truegenols::AbstractVector,viterbigenols::AbstractVector;
+    ismidparent::Bool=true)    
+    accls = [begin 
+        chrtruehap = truegenols[chr]
+        chresthap= viterbigenols[chr] 
+        accls = [calphaseerr(chrtruehap[:,p],chresthap[:,p]) for p in 1:size(chrtruehap,2)]
+        keyls = keys(first(accls))
+        valls = sum([values(j)...] for j in accls)
+        (;zip(keyls,valls)...)
+    end for chr in eachindex(truegenols,viterbigenols)]    
+    resid = ismidparent ? "midparent_origin" : "offspring_origin"
+    keyls = Symbol.(string.(keys(first(accls))))
+    valls = sum([values(j)...] for j in accls)
+    [resid => (;zip(keyls,valls)...)]
+end
+
+function caloffspring_phaseacc(truegeno::PolyGeno, polyest::JoinedPolyAncestry)
+    truegenols = truegeno.offspringgeno
+    estgenols = polyest.offspringgeno
+    accls = [begin 
+        chrtruehap = truegenols[chr]
+        chresthap= estgenols[chr] 
+        chresthap= [parse.(Int,i) for i in estgenols[chr]]
+        accls = [calphaseerr(chrtruehap[:,p],chresthap[:,p]) for p in 1:size(chrtruehap,2)]    
+        keyls = keys(first(accls))
+        valls = sum([values(j)...] for j in accls)
+        (;zip(keyls,valls)...)
+    end for chr in eachindex(truegenols,estgenols)]    
+    keyls = Symbol.(string.(keys(first(accls))))
+    valls = sum([values(j)...] for j in accls)
+    ["offspring_phasing" => (;zip(keyls,valls)...)]
+end
+
+
+
+
+
+

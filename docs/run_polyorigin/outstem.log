@@ -1,0 +1,214 @@
+polyorigin, logfile=outstem.log, 2026-11-01T13:59:55
+≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡polyorigin≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
+check genofile extension = .csv: VCF-format genofile is recommended
+check genofile existence: YES
+check pedfile extension = .csv: OK
+check pedfile existence: YES
+check samples allunique: YES
+check parents allunique: YES
+check parents: OK. All 3 parents = ["A", "B", "C"] in pedfile are also in samples in genofile
+check offspring allunique: YES
+check offspring: OK. All 120 offspring in pedfile are also in samples in genofile
+check samples: OK. All 123 samples in genofile are also in pedfile
+Pass all checks for input genofile and pedfile
+Julia version: 1.13.2
+Status `C:\Users\zheng026\.julia\environments\v1.13\Project.toml`
+  [16de7d52] PolyOrigin v1.9.10 `c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin`
+list of options: 
+genofile = geno.csv
+pedfile = ped.csv
+isphysmap = false
+recomrate = 1
+delimchar = ,
+missingstring = NA
+commentstring = ##
+================================polyorigin!=================================
+save design plot in c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\outstem_plots\outstem_pedigree.png
+---------------------------------polyphase!---------------------------------
+list of option values: 
+chrsubset = all chromosomes
+snpsubset = all markers
+chrpairing_phase = 22
+byparent = nothing
+byneighbor = nothing
+bindis = 0.001cM
+isparentdoseerror = nothing
+iscorrectparent = nothing
+isrefineerror = nothing
+tukeyfence = nothing
+doseerror = ErrorSetting("doseerror", true, Beta{Float64}(α=1.0, β=9.0), 0.01, 0.05, 0.2)
+baseerror = ErrorSetting("baseerror", false, Beta{Float64}(α=1.0, β=49.0), 0.001, 0.01, 0.05)
+allelicbias = ErrorSetting("allelicbias", true, LogNormal{Float64}(μ=0.0, σ=1.0), 1, 2, 10)
+overdispersion = ErrorSetting("overdispersion", true, Exponential{Float64}(θ=0.5), 0.0, 0.1, 1.0)
+isgreedy = false
+ismarkerspecific = nothing
+isdelvuong = false
+delsiglevel = 0.01
+maxstuck = 3
+maxiter = 50
+minrun = 3
+maxrun = 3
+runblocksize = 3
+refhapfile = nothing
+missingstring = NA
+isparallel = true(nworkers=3)
+isplot = true
+outstem = outstem
+outext = .vcf.gz
+logfile = IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\outstem.log>)
+workdir = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin
+tempdirectory = C:\Users\zheng026\AppData\Local\Temp
+verbose = true
+#pop=4, #parent=3, #offspring=120, #chr=1, #marker=120, genolen=99.9cM
+reset isrefineerror = true
+reset isparentdoseerror = true
+reset iscorrectparent = true
+reset byparent=false
+reset byneighbor=false
+reset tukeyfence = 3
+keywords in messages: 
+	#diff     ≡ #differences between proposal and current phasing
+	Δlogp     ≡ increase of log posterior
+	#stuck    ≡ measure of parental phasing being stuck
+	alwaysapt ≡ if true, always accept proposal phasing
+	byblock   ≡ if true, update parental phasing by blocks
+	#del_err  ≡ #deleted markers with too large error rates
+	#del_test ≡ #deleted markers via Vuong's test
+	tused     ≡ time (second) used by each sub-step in the iteration
+
+phasing 1 out of 1 components: 3 connected parents = A, B, C
+goodparents = [1, 2, 3]
+partition = 1|2|3
+prepare for multiple phasing runs, tused=0.1 seconds
+parallel phasing: chrls=[1], run=1:3
+chr=A, run=1, #markers=120, parentformat=["GT_unphased"], offspringformat=["GT_unphased"], readpolygeno, tused=2.2s
+chr=A, run=1, targetls=["doseerror"], #fixedparents=0, doseerror=0.0005
+chr=A, run=1, it=1, #diff=234/360, Δlogp=22243.3, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0005, tused=4.1|0.0s
+chr=A, run=1, it=2, #diff=124/360, Δlogp=8599.0, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0005, tused=0.7|0.0s
+chr=A, run=1, it=3, #diff=0/360, Δlogp=0.0, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0005, tused=0.6|0.0s
+chr=A, run=1, it=4, #diff=0/360, Δlogp=0.0(rej), #stuck=2, alwaysaccept=false, byblock=true, doseerror=0.0088, #correct=0, tused=1.4|1.6|1.2s
+chr=A, run=1, doseerror.prior=Distributions.Beta{Float64}(α=1.0, β=9.0)
+chr=A, run=2, #markers=120, parentformat=["GT_unphased"], offspringformat=["GT_unphased"], readpolygeno, tused=2.1s
+chr=A, run=2, targetls=["doseerror"], #fixedparents=0, doseerror=0.0085
+chr=A, run=2, it=1, #diff=237/360, Δlogp=18445.6, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0085, tused=4.1|0.0s
+chr=A, run=2, it=2, #diff=95/360, Δlogp=5721.6, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0085, tused=0.7|0.0s
+chr=A, run=2, it=3, #diff=0/360, Δlogp=0.0, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0085, tused=0.7|0.0s
+chr=A, run=2, it=4, #diff=0/360, Δlogp=0.0(rej), #stuck=2, alwaysaccept=false, byblock=true, doseerror=0.0088, #correct=0, tused=1.3|1.9|1.0s
+chr=A, run=2, doseerror.prior=Distributions.Beta{Float64}(α=1.0, β=9.0)
+chr=A, run=3, #markers=120, parentformat=["GT_unphased"], offspringformat=["GT_unphased"], readpolygeno, tused=2.3s
+chr=A, run=3, targetls=["doseerror"], #fixedparents=0, doseerror=0.0099
+chr=A, run=3, it=1, #diff=231/360, Δlogp=18140.6, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0099, tused=4.2|0.0s
+chr=A, run=3, it=2, #diff=127/360, Δlogp=5287.2, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0099, tused=0.7|0.0s
+chr=A, run=3, it=3, #diff=0/360, Δlogp=0.0, #stuck=0, alwaysaccept=true, byblock=false, doseerror=0.0099, tused=0.7|0.0s
+chr=A, run=3, it=4, #diff=0/360, Δlogp=0.0(rej), #stuck=2, alwaysaccept=false, byblock=true, doseerror=0.0088, #correct=0, tused=1.4|1.7|1.1s
+chr=A, run=3, doseerror.prior=Distributions.Beta{Float64}(α=1.0, β=9.0)
+tused =14.3s for phasing runs = ["A_runs1-3"]
+chr=A, done, parents = none, nphaseerr(run1 ~ runs) = [0, 0, 0], npermerr = [0, 0, 0], ndel = [0, 0, 0]
+	logl = [-3036.19, -3036.2, -3036.2], logp = [-3598.37, -3598.38, -3598.38]
+tused=14.9s for all phasing runs, logp sum =-3598.37, logp perchr = [-3598.37]
+parentphased file: outstem_phased.vcf.gz
+End, 2026-11-01T14:00:13, tused = 15.3 seconds by polyphase!
+----------------------------------------------------------------------------
+--------------------------------polyrefine!---------------------------------
+list of option values: 
+chrpairing = 44
+chrsubset = all chromosomes
+snpsubset = all markers
+byneighbor = false
+bindis = 0.001cM
+isdelvuong = false
+delsiglevel = 0.01
+isrefineorder = false
+isrefinedis = nothing
+isrefineerror = nothing
+tukeyfence = nothing
+iscorrectparent = nothing
+doseerror = ErrorSetting("doseerror", true, Beta{Float64}(α=1.0, β=9.0), 0.01, 0.05, 0.2)
+baseerror = ErrorSetting("baseerror", false, Beta{Float64}(α=1.0, β=49.0), 0.001, 0.01, 0.05)
+allelicbias = ErrorSetting("allelicbias", true, LogNormal{Float64}(μ=0.0, σ=1.0), 1, 2, 10)
+overdispersion = ErrorSetting("overdispersion", true, Exponential{Float64}(θ=0.5), 0.0, 0.1, 1.0)
+maxwinsize = 50
+inittemperature = 4
+coolingrate = 0.5
+stripdis = 20cM
+skeletonsize = 100
+isparallel = true
+isplot = true
+outstem = outstem
+outext = .vcf.gz
+logfile = IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\outstem.log>)
+workdir = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin
+verbose = true
+verbosemore = false
+#pop=4, #parent=3, #offspring=120, #chr=1, #marker=120, genolen=99.9cM
+reset isparallel = false
+reset isrefinedis = true
+reset isrefineerror = true
+reset tukeyfence = 3
+reset iscorrectparent = true
+chr=A, reset doseerror.prior = Beta{Float64}(α=1.0, β=99.0)
+chr=A, it=0, <doseerror>=0.0088, len=99.9cM, logl=-3036.1
+chr=A, it=1, <doseerror>=0.0093, #del_err=0, #correct=0, len=94.6cM, logl=-2941.0, tused=8.9s
+chr=A, it=2, <doseerror>=0.0093, #del_err=0, #correct=0, len=94.3cM, logl=-2935.5, tused=1.8s
+chr=A, it=3, <doseerror>=0.0093, #del_err=0, len=94.1cM, logl=-2934.5, tused=1.4s
+chr=A, it=4, <doseerror>=0.0093, #del_err=0, len=94.1cM, logl=-2934.4, tused=1.5s
+chr=A, it=5, <doseerror>=0.0093, #del_err=0, len=94.2cM, logl=-2934.3, tused=1.5s
+chr=A, #seg=71, no distance rescaling by skeleton markers
+chr=A, done, elapsed=18.0seconds, len=94.2cM, #marker=120
+tused=18.0s for all chromosomes
+no marker deleted
+#pop=4, #parent=3, #offspring=120, #chr=1, #marker=120, genolen=94.2cM
+refined genofile: outstem_maprefined.vcf.gz
+mapcomp file: outstem_plots\outstem_polyrefine_mapcomp.png
+End, 2026-11-01T14:00:33, tused = 19.8 seconds by polyrefine!
+----------------------------------------------------------------------------
+------------------------------polyreconstruct!------------------------------
+list of option values: 
+doseerror = 0.01
+baseerror = 0.001
+chrpairing = 44
+chrsubset = all chromosomes
+snpsubset = all markers
+bindis = 0.001cM
+iscorrectparent = true
+isimputefirst = true (reconstruct using imputed offspring)
+isparallel = nothing
+isparallelind = nothing
+missingstring = NA
+isplot = true
+nplot_subpop = 5
+tukeyfence = 3
+samplesize = 1000
+trueorigfile = nothing
+outstem = outstem
+outext = .vcf.gz
+logfile = IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\outstem.log>)
+workdir = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin
+tempdirectory = C:\Users\zheng026\AppData\Local\Temp
+verbose = true
+#pop=4, #parent=3, #offspring=120, #chr=1, #marker=120, genolen=94.2cM
+reset isparallel=false
+reset isparallelind=true
+chr=A, #markers=120, <doseerror>=0.0093, tused=5.9s, #correct=0
+tused=7.0s for all 1 chromosomes
+imputed genofile: outstem_imputed.vcf.gz
+no outlier offspring
+phased genofile: outstem_phased.vcf.gz
+valentsummary file: outstem_chrpairing.csv
+valentformation plot: outstem_valent_formation.png
+valentfreq plot: outstem_valent_freq.png
+prefpairing plot: outstem_valent_prefpairing.png
+double reduction plot: outstem_valent_DR.png
+nrecom file: outstem_nrecom.csv
+posterior_nrecom plot: outstem_posterior_nrecom.png
+polyancestry file: outstem_polyancestry.csv.gz
+it might take a while to produce joinedancestry!
+tused = 15.5s
+joinedancestry file: outstem_joinedancestry.csv.gz
+End, 2026-11-01T14:01:21, tused = 47.6 seconds by polyreconstruct!
+----------------------------------------------------------------------------
+tarplotfile: outstem_plots.tar
+End, 2026-11-01T14:01:21, tused = 83.7 seconds by polyorigin!
+============================================================================
+End, 2026-11-01T14:01:21, tused = 86.2 seconds by polyorigin
+≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡

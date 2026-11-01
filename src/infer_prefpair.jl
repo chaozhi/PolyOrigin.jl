@@ -88,7 +88,7 @@ function infer_prefpair(bivalentdf::AbstractDataFrame; pstep::Real=0.001)
         estls = [get_quantile(xls, cdfls,q) for q in qls]
         log10pvalue = log10(get_cdf_at(xls, cdfls, 0.05))
         push!(postdf, pdfls)        
-        push!(estdf, vcat(Vector(row[1:col_1st_valent-1]),[log10pvalue, estmle],estls))
+        push!(estdf, vcat(string.(Vector(row[1:col_1st_valent-1])),[log10pvalue, estmle],estls))
     end
     hcat(estdf, postdf)
 end

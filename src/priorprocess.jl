@@ -22,20 +22,15 @@ function getouterlist(v1::AbstractVector,v2::AbstractVector,x...)
     foldl(getouterlist,x,init=res)
 end
 
-# a zygote consists of two gamtes for each of two parents
-# eg. n=4, nvalents =[2,2] for parent1, nvalents = [4,4] for parent2
-# then nvalentslist=[[2,2],[4,4]]
-# it allows that a zygote consists of a single gamete, e.g., nvalentslist=[[2,2]]
-# function getzygotetran(d::AbstractFloat,nvalentslist::AbstractVector{Array{Int64,1}})
-#     ls=[getgametetran(d,nvalents) for nvalents=nvalentslist]
-#     foldl(kron,ls)
-# end
+
 
 # a gamate consists of n/2 bivalent chromosomes or one multivalent pairing
 # e.g. n=6, nvalents = [2,2,2]  or [6,6,6]
-function getgametetran(d::AbstractFloat,nvalents::AbstractVector)
+function getgametetran(d::AbstractFloat,nvalents::AbstractVector,bindis::Real)
+    # d ≈ 0.0 && return nothing    
+    d < bindis/100 && return nothing    # d in unit of Morgan, bindis in unit of cM
     ls=[getvalenttran(d,n) for n=nvalents]
-    foldl(kron,ls)
+    foldl(kron,ls)    
 end
 
 # transition along a single chromome resulting from bi- or multi-valent pairing
@@ -51,7 +46,7 @@ end
 # calculate bivalent formation
 function getgametebivalent(set::AbstractVector)
     len = length(set)
-    foldl(getcharpairslist,[set for i=1:(len ÷ 2-1)],init=getchrpair([],set))
+    foldl(getcharpairslist,[set for i=1:(len ÷ 2-1)],init=getchrpair([],set))    
 end
 
 # calculate chromosome pairings, under constraint multivalent <= maxvalent
@@ -97,9 +92,8 @@ function getgametevalent(ploidy::Integer,maxvalent::Integer)
             ls2 = [[i,i,i,setdiff(set,i)] for i=ls]
             res = vcat(res,ls2)
         end
-    end
-    # Vector{Vector{Vector{Int8}}}(res)
-    res
+    end    
+    unique(reduce(vcat, [collect(permutations(i)) for i in res]))
 end
 
 function getzygotevalent(ploidypp::AbstractVector, maxvalentpp::AbstractVector,isselfing::Bool,
@@ -131,22 +125,12 @@ function getzygotevalent(ploidypp::AbstractVector, maxvalentpp::AbstractVector,i
             len[1]*10+len[2] > chrpairing ? missing : i
         end for i=res]
     end
-    Matrix{Vector{Vector{Vector{Int8}}}}(res)    
+    [ismissing(i) ? missing : Vector{Vector{Vector{Int16}}}(i) for i in res]    
 end
 
-gametevalentdiff(v1,v2) = length(v1) - length(intersect(v1,v2)) 
+
 function getgameteneighbor(gametevalents::AbstractVector)
-    ploidy = length(first(gametevalents))        
-    dmax = max(2, div(ploidy,2)-1)    
-    [begin
-        v = gametevalents[s]
-        dls = [gametevalentdiff(v,i) for i in gametevalents]
-        findall(dls .<= dmax)
-    end for s=eachindex(gametevalents)]
-end
-
-function getgameteneighbor_old(gametevalents::AbstractVector)
-    valents2=gametevalents
+    valents2=unique.(gametevalents)
     rule= Dict(valents2 .=> 1:length(valents2))
     [begin
         v=valents2[s]
@@ -221,52 +205,104 @@ function getzygotecondstate(zygotevalent::AbstractMatrix,zygotestate::AbstractVe
     end for valent = zygotevalent]
 end
 
-function getpriorstatespace(polygeno::PolyGeno,chrpairing::Integer)
-    getpriorstatespace(polygeno.designinfo,polygeno.parentinfo,chrpairing)
-end
 
-function getpriorstatespace(designinfo::DataFrame,parentinfo::DataFrame,
-    chrpairing::Integer)
-    maxvalent = max(digits(chrpairing)...)
+function get_priorstatespace(polyped::PolyPed, chrpairing::Union{Nothing,Integer})
+    (;ped, designinfo, parentinfo, offspringinfo) = polyped;
+    maxvalent = isnothing(chrpairing) ? 4 : max(digits(chrpairing)...)
     ploidyls = parentinfo[!,:ploidy]
-    maxvalentls=[min(maxvalent,ploidyls[i]) for i=1:length(ploidyls)]
-    Dict([begin
-        gametecount=Vector(designinfo[pop,2:end])
-        parentindex =  findall(gametecount .> 0)
+    maxvalentls=[min(maxvalent,ploidyls[i]) for i=eachindex(ploidyls)]
+    OrderedDict([begin                        
+        popid=designinfo[pop,:family]        
+        offspringindex = findall(offspringinfo[!,:family] .== popid)
+        offspringid = offspringinfo[offspringindex, :individual]
+        midparentindex = findall(parentinfo[!,:family] .== popid)
+        midparentid = parentinfo[midparentindex,:individual]
+        if isempty(offspringid)
+            ploidyls = unique(parentinfo[midparentindex, :ploidy])
+            length(ploidyls) > 1 && @error string("differnet ploidies in family=", pop, ": ",ploidyls)
+            offploidy = only(ploidyls)
+        else
+            ploidyls = unique(offspringinfo[offspringindex, :ploidy])
+            length(ploidyls) > 1 && @error string("differnet ploidies in family=", pop, ": ",ploidyls)
+            offploidy = only(ploidyls)
+        end        
+        parentidls = parentinfo[!,:individual]
+        nprogenyls = parentinfo[!,:immediate_progeny]
+        if isempty(offspringid)
+            mem = findfirst(==(first(midparentid)), ped.member)
+        else
+            mem = findfirst(==(first(offspringid)), ped.member)
+        end        
+        moth = ped.mother[mem]
+        fath = ped.father[mem]
+        mothindex = findfirst(==(moth), parentidls) 
+        fathindex = findfirst(==(fath), parentidls)
+        parentid = [moth, fath]
+        parentindex =  [mothindex, fathindex] 
         ploidypp=parentinfo[parentindex,:ploidy]
-        parentid=parentinfo[parentindex,:individual]
-        maxvalentpp=maxvalentls[gametecount .>= 1]
-        isselfing = 2 in gametecount
-        if isselfing
-            ploidypp=repeat(ploidypp,2)
-            maxvalentpp=repeat(maxvalentpp,2)
+        maxvalentpp=maxvalentls[parentindex]
+        isselfing = mothindex == fathindex
+        if isnothing(chrpairing)
+            minnprogeny = minimum(nprogenyls[parentindex]) 
+            maxploidy = maximum(ploidypp)
+            if maxploidy <= 2
+                chrpairing2 = 22
+            elseif maxploidy <= 4
+                if minnprogeny > 2*maxploidy^2
+                    chrpairing2 = 42
+                else
+                    chrpairing2 = 44
+                end
+            else
+                chrpairing2 = 42
+            end
+        else
+            chrpairing2 = chrpairing
         end
-        zygotevalent=getzygotevalent(ploidypp,maxvalentpp,isselfing,chrpairing)
+        zygotevalent=getzygotevalent(ploidypp,maxvalentpp,isselfing,chrpairing2)
         zygotestate =getzygotestate(zygotevalent)
         groupstate =getzygotegroupstate(zygotestate)
         condstate =getzygotecondstate(zygotevalent,zygotestate)
         valentkey =tovalentkey(zygotevalent)
-        valentneighbor = getzygoteneighbor(ploidypp,maxvalentpp,isselfing,chrpairing)
-        popstate=Dict("parent"=>parentid,"parentindex"=>parentindex,"valent"=>zygotevalent,
+        valentneighbor = getzygoteneighbor(ploidypp,maxvalentpp,isselfing,chrpairing2)        
+        
+        # offspring and midparent are full sibs with common parent
+        popstate=Dict("parent"=>parentid,"parentindex"=>parentindex,
+            "parentploidy" => ploidypp,
+            "midparent"=>midparentid,"midparentindex"=>midparentindex,
+            "offspring"=>offspringid,"offspringindex"=>offspringindex,
+            "offspringploidy" => offploidy, 
+            "chrpairing" => chrpairing2,
+            "valent"=>zygotevalent,
             "valentkey"=>valentkey,"valentneighbor"=>valentneighbor,
             "condstate"=>condstate,"state"=>zygotestate,"groupstate"=>groupstate)
-        popid=designinfo[pop,:population]
         popid => popstate
-    end for pop = 1: size(designinfo,1)])
+    end for pop = 1:size(designinfo,1)])
 end
 
-function getpriorprocess(polygeno::PolyGeno,chr::Integer,maxvalent::Integer)
+
+function get_popsum(priorspace::AbstractDict)
+    df = DataFrame("familiy"=>String[], "parents"=>String[], "size"=>Int[],"chrpairing_phase"=>Int[])
+    for (pop,val) in priorspace
+        parents = join(val["parent"],"|")
+        popsize = length(val["offspring"])
+        push!(df, [pop,parents,popsize,val["chrpairing"]])
+    end
+    df
+end
+
+function get_priorprocess(polygeno::PolyGeno,chr::Integer,maxvalent::Integer;bindis::Real=1e-3)
     markerid = polygeno.markermap[chr][!,:marker]
-    locseq = polygeno.markermap[chr][!,:position] ./ 100
+    locseq = polygeno.markermap[chr][!,:poscm] ./ 100
     priordict = Dict{String,MarkovPrior}()
-    for p = 1:size(polygeno.parentinfo,1)
-        ploidypp=polygeno.parentinfo[p,:ploidy]
+    for p = 1:size(polygeno.polyped.parentinfo,1)
+        ploidypp=polygeno.polyped.parentinfo[p,:ploidy]
         maxvalentpp=min(maxvalent,ploidypp)
         gammetevalent = getgametevalent(ploidypp,maxvalentpp)
         keyls = unique([join(length.(i),"-") for i=gammetevalent])
         for strkey = keyls
             if  !haskey(priordict,strkey)
-                val = valentkey2priorproces(strkey,markerid,locseq)
+                val = valentkey2priorproces(strkey,markerid,locseq,bindis)
                 push!(priordict,strkey => val)
             end
         end
@@ -277,34 +313,67 @@ end
 function strkey2prior(priorprocess::AbstractDict, strkey::AbstractString)
     ls=[priorprocess[i] for i=split(strkey,"|")]
     startprob = [i.startprob for i=ls]
-    tranprobseq = [Vector{Matrix{Float64}}(i.tranprobseq[i.markerincl][1:end-1]) for i=ls]
+    tranprobseq = [i.tranprobseq[i.markerincl][1:end-1] for i=ls]    
     (markerincl=ls[1].markerincl,startprob=startprob, tranprobseq=tranprobseq)
 end
 
-function getstartprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector)
+
+function get_startprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector)
     dict= Dict([begin
             priorls=[priorprocess[i] for i=split(strkey,"|")]
             startprob = [i.startprob for i=priorls]
             strkey => kron(startprob...)
         end for strkey = unique(bvkeyls)])
-    [get(dict,i, nothing) for i=bvkeyls]
+    [dict[i] for i=bvkeyls]
 end
 
-function gettranprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector, t::Integer)
+function get_startprobls(priorprocess::AbstractDict,bvdict::AbstractDict)
+    bvkeyls = reduce(vcat, last.(values(bvdict)))
+    get_startprobls(priorprocess, bvkeyls)
+end
+
+function get_tranprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector, t::Integer; calkron::Bool=false)
     dict= Dict([begin
             priorls=[priorprocess[i] for i=split(strkey,"|")]
-            tranprob = [i.tranprobseq[t] for i=priorls]            
-            strkey => kron(tranprob...)
+            tranprob = [i.tranprobseq[t] for i=priorls]
+            if calkron
+                tranprob2 = any(isnothing.(tranprob)) ? nothing : kron(tranprob...)
+                strkey => tranprob2 
+            else
+                strkey => tranprob                 
+            end            
         end for strkey = unique(bvkeyls)])
-    [get(dict,i, nothing) for i=bvkeyls]
+    [dict[i] for i=bvkeyls]
 end
+
+function get_tranprobls(priorprocess::AbstractDict,bvdict::AbstractDict,t; calkron::Bool=false)
+    bvkeyls = reduce(vcat, last.(values(bvdict)))
+    get_tranprobls(priorprocess, bvkeyls,t; calkron)
+end
+
+function cal_tranprobls(priorprocess::AbstractDict,bvdict::AbstractDict,tnowdis::Real,bindis::Real)
+    bvkeyls = reduce(vcat, last.(values(bvdict)))
+    cal_tranprobls(priorprocess, bvkeyls, tnowdis,bindis)
+end
+
+
+function cal_tranprobls(priorprocess::AbstractDict,bvkeyls::AbstractVector,tnowdis::Real,bindis::Real)
+    gametedict = Dict([strkey=>getgametetran(tnowdis,pri.nvalent,bindis)
+        for (strkey, pri) in priorprocess])        
+    dict= Dict([begin        
+        tranprob=[gametedict[i] for i=split(strkey,"|")]
+        strkey => tranprob
+    end for strkey = unique(bvkeyls)])    
+    [dict[i] for i=bvkeyls]
+end
+
 
 mutable struct MarkovPrior
     # for a given linkage group
     startprob::Vector{Float64}
-    tranprobseq::Union{Missing,Vector{Union{Missing,Matrix{Float64}}}}
-    nvalent::Vector{Int64}
-    markerdeltd::Vector{Union{Missing,Float64}}
+    tranprobseq::Vector{Union{Nothing,Matrix{Float64}}}
+    nvalent::Vector{Int}
+    markerdeltd::Vector{Union{Nothing,Float64}}
     markerincl::BitVector
     markerid::Vector{String}
     function MarkovPrior(startprob,tranprobseq,nvalent,markerdeltd,markerincl,markerid)
@@ -317,72 +386,85 @@ mutable struct MarkovPrior
 end
 
 function valentkey2priorproces(valentkey::AbstractString,
-    markerid::AbstractVector,locseq::AbstractVector)
+    markerid::AbstractVector,locseq::AbstractVector,bindis::Real)
     deltd = abs.(diff(locseq))
     nvalent = parse.(Int,split(valentkey,"-"))
-    tranprobseq =vcat([getgametetran(i,nvalent) for i=deltd],missing)
+    tranprobseq =vcat([getgametetran(i,nvalent,bindis) for i=deltd],nothing)
     # nstate=size(tranprob[1],1)
     nstate=foldr(*,vcat(nvalent...))
     startprob = [1.0/nstate for i=1:nstate]
     markerincl = trues(length(locseq))
-    markerdeltd = vcat(deltd,[0])
+    markerdeltd = vcat(deltd,[nothing])
     MarkovPrior(startprob,tranprobseq,nvalent,markerdeltd,markerincl,deepcopy(markerid))
 end
 
 function reverseprior!(pri::MarkovPrior)
-    bool=pri.markerincl
-    tran = similar(pri.tranprobseq)
-    tran .= missing
-    tran[bool]=circshift(pri.tranprobseq[bool],1)
-    reverse!(tran)
-    pri.tranprobseq = tran
-    pri.markerdeltd=circshift(reverse(pri.markerdeltd),-1)
-    reverse!(pri.markerincl)
+    incl = pri.markerincl
+    deltd = circshift(reverse(pri.markerdeltd[incl]),-1)
+    tran = circshift(reverse(pri.tranprobseq[incl]),-1)
+    reverse!(pri.markerincl) # incl is revised too
+    pri.markerdeltd[incl] .= deltd
+    pri.markerdeltd[.!incl] .= nothing
+    pri.tranprobseq[incl] .= tran
+    pri.tranprobseq[.!incl] .= nothing
     reverse!(pri.markerid)
     pri
 end
 
-function setmarkerincl!(pri::MarkovPrior,markerincl::BitVector)
-    if length(pri.markerincl) != length(markerincl)
-        @error("markerincl has wrong #markers: ",length(markerincl))
-    end
-    deltd = copy(pri.markerdeltd)
-    pre=0
-    for i=1:length(markerincl)-1
-        if markerincl[i]
-            pre = i
-        else
-            pre>0 && (deltd[pre] += deltd[i])
-            deltd[i] = 0
-        end
-    end
-    markerincl[end] || (deltd[pre]=0)
-    tran = similar(pri.tranprobseq)
-    tran .= missing
-    ii = findall(markerincl)[1:end-1]
-    tran[ii]=[getgametetran(i,pri.nvalent) for i=deltd[ii]]
-    pri.tranprobseq .= tran
-    pri.markerincl .= markerincl
-    pri.markerdeltd .= deltd
-    pri
+
+function setpriorprocess!(priorprocess::AbstractDict, snporder::AbstractVector,
+    delsnps::AbstractVector,bindis::Real)
+    dict = Dict(snporder .=> 1:length(snporder))
+    deltt = [get(dict, snp, nothing) for snp in delsnps]    
+    setpriorprocess!(priorprocess,deltt,bindis)
 end
 
-
-
-function setsegrev!(priorprocess::AbstractDict,tt::AbstractVector)
-    tt2=tt[1:end-1]
-    for (strkey, pri) in priorprocess
-        pri.markerdeltd[tt2] = pri.markerdeltd[reverse(tt2)]
-        pri.tranprobseq[tt2] = pri.tranprobseq[reverse(tt2)]
-        pri.markerid[tt] = pri.markerid[reverse(tt)]
+function setpriorprocess!(priorprocess::AbstractDict, deltt::AbstractVector,bindis)
+    for (_, pri) in priorprocess
+         setmarkerincl!(pri,deltt,bindis)
     end
     priorprocess
 end
 
-function setdistanceat!(priorprocess::AbstractDict,tnow::Integer,tnowdis::Real)
+function setmarkerincl!(pri::MarkovPrior,deltt::AbstractVector,bindis::Real)
+    markerincl = pri.markerincl
+    markerincl[deltt] .= false
+    # calculate new deltd
+    deltd = copy(pri.markerdeltd)
+    i0 = findfirst(markerincl)
+    if isnothing(i0)
+        pri.markerdeltd[.!markerincl] .= nothing        
+        pri.tranprobseq[.!markerincl] .= nothing
+        @warn string("less than 2 markers are included! deltt=", deltt)
+    else
+        pre = i0
+        for i=i0:length(markerincl)-1
+            if markerincl[i]
+                pre = i
+            else
+                if !isnothing(deltd[i])
+                    deltd[pre] += deltd[i]
+                    deltd[i] = nothing
+                end
+            end
+        end
+        markerincl[end] || (deltd[pre]=0.0)
+        # println("pre=",pre,";i0=",i0,",deltt=",deltt)
+        # update pri.markerdeltd
+        pos = findall(deltd[1:end-1] .!= pri.markerdeltd[1:end-1])
+        pri.markerdeltd[pos] .= deltd[pos]
+        pos = pos[markerincl[pos]]
+        if !isempty(pos)
+            pri.tranprobseq[pos] .= [getgametetran(i,pri.nvalent,bindis) for i in deltd[pos]]
+        end
+    end
+    pri
+end
+
+function setdistanceat!(priorprocess::AbstractDict,tnow::Integer,tnowdis::Real,bindis::Real)
     for (strkey, pri) in priorprocess
         pri.markerdeltd[tnow] = tnowdis
-        pri.tranprobseq[tnow] = getgametetran(tnowdis,pri.nvalent)
+        pri.tranprobseq[tnow] = getgametetran(tnowdis,pri.nvalent,bindis)
     end
     priorprocess
 end

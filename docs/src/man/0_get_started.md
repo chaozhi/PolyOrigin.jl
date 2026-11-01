@@ -1,7 +1,7 @@
 # Get started
 
 ## Installation
-From the julia (>v1.10.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
+From the julia (>v1.11.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl
@@ -21,6 +21,6 @@ using Distributed
 addprocs(n)
 @everywhere using PolyOrigin
 ```
-and set ```isparallel=true``` in function [`polyOrigin`](@ref). See `addprocs`
+and set ```isparallel=true``` in function [`polyorigin`](@ref). See `addprocs`
 for launching worker processes via the specified cluster manager or on remote
 machines via SSH.
