@@ -7,7 +7,6 @@ populations. See also: [`polyorigin`](@ref), [`polyorigin!`](@ref).
 module PolyOrigin
 
 # TODO: speedup:  change dataprob matrix to vector of vector for each marker, for a given offspring
-using Comonicon
 using LinearAlgebra, SparseArrays, Random, Statistics
 using Pkg, DelimitedFiles, GZip, Printf,Serialization, Dates
 using DataFrames, CSV, Combinatorics, StatsBase, SpecialFunctions
@@ -70,7 +69,5 @@ include("polyorigin_fun.jl")
 include("polyplot.jl")
 include("polyplot_valent.jl")
 include("calaccuracy.jl")
-include("polyorigin_cli.jl")
-
 
 end # module

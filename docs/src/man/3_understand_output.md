@@ -2,7 +2,7 @@
 
 ## Overview
 
-![](PolyOrigin2_pipeline.png)
+![](PolyOrigin_pipeline.png)
 
 PolyOrigin produces in total 8 files
 1. oustem.log: log file containing input argument values and computational time. 

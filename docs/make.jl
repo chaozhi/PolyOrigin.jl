@@ -5,10 +5,11 @@ try
     using PolyOrigin
 catch
     using Pkg
-    Pkg.develop(PackageSpec(path = abspath(@__DIR__,"..")))
-    Pkg.instantiate()
+    Pkg.activate()
+    Pkg.develop(PackageSpec(path = pkgpath))    
 end
 
+cd(@__DIR__)
 
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
 isdir(joinpath(@__DIR__,"build")) && error("delete old build!")
@@ -42,6 +43,6 @@ makedocs(
 
 deploydocs(;
     repo="github.com/chaozhi/PolyOrigin.jl.git",
-    devbranch = "main",
+    devbranch = "v2devp",
 )
 

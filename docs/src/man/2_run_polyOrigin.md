@@ -5,8 +5,8 @@ Run function [`polyorigin`](@ref) for haplotype reconstruction in diploid or tet
 ```@example
 using PolyOrigin
 workdir = abspath(pkgdir(PolyOrigin),"docs","run_polyorigin")
-genofile = "geno.csv"
-pedfile = "ped.csv"
+genofile = "sim_4x_geno.vcf.gz"
+pedfile = "sim_4x_ped.csv"
 outstem = "outstem"
 polyorigin(genofile,pedfile;
     chrpairing_phase=22,    
@@ -20,4 +20,3 @@ filter(x->occursin(outstem,x), readdir(workdir))
 ```
 
 Here `chrpairing_phase=22` denotes only bivalent formations in parental phasing, and `chrpairing=44` denotes bivalent and quadrivalent formations in ancestral inference. `isphysmap` specifies if the input map is a physical map, `isrefine` specifies if refinning the input map, `workdir` specifies the directory of input and output files, and `outstem` specifies the stem for output filenames.
-

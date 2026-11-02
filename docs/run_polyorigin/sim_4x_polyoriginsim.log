@@ -1,0 +1,61 @@
+polyoriginsim, logfile=sim_4x_polyoriginsim.log, 2026-11-02T23:08:08
+===============================polyoriginsim================================
+Julia version: 1.13.2
+Status `C:\Users\zheng026\.julia\environments\v1.13\Project.toml`
+  [63b33d41] PolyOriginSim v0.1.0 `c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOriginSim\PolyOriginSim`
+list of options: 
+fhaplofile = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\sim_4x_fhaplo.vcf.gz
+pedfile = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\sim_4x_ped.csv
+isphysmap = true
+recomrate = 1
+isdelmono = true
+centromere = nothing
+prefPairing = 0.0
+quadrivalents = 0.0
+allownorecombination = true
+naturalpairing = false
+missfreq = 0.01
+doseerror = 0.01
+isgbs = false
+gbsavgdepth = 40
+gbsbaseerror = 0.001
+gbsallelicbias = LogNormal{Float64}(μ=0.0, σ=0.5)
+gbsoverdispersion = Exponential{Float64}(θ=0.1)
+missingstring = NA
+outstem = sim_4x
+outext = .vcf.gz
+logfile = IOStream(<file c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\sim_4x_polyoriginsim.log>)
+workdir = c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin
+verbose = true
+check genofile extension = .vcf.gz: OK
+check genofile existence: YES
+check pedfile extension = .csv: OK
+check pedfile existence: YES
+check samples allunique: YES
+check parents allunique: YES
+check parents: OK. All 3 parents = ["P1", "P2", "P3"] in pedfile are also in samples in genofile
+check offspring allunique: YES
+check offspring: OK. All 0 offspring in pedfile are also in samples in genofile
+check samples: OK. All 3 samples in genofile are also in pedfile
+Pass all checks for input genofile and pedfile
+prepare input files for PedigreeSim
+run PedigreeSim
+Parameter file=sim_4x_pedigreesim_in.par
+write file sim_4x_pedigreesim_out.hsa
+write file sim_4x_pedigreesim_out.hsb
+write file sim_4x_pedigreesim_out_meioticconfigs.dat
+write file sim_4x_pedigreesim_out_genotypes.dat
+chrom chr1
+write file sim_4x_pedigreesim_out_founderalleles.dat
+chrom chr1
+write file sim_4x_pedigreesim_out_alleledose.dat
+chrom chr1
+Process(`java -jar 'c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOriginSim\PolyOriginSim\PedigreeSim_compiled\PedigreeSim.jar' 'c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\sim_4x_pedigreesim_in.par'`, ProcessExited(0))
+tused by PedigreeSim: 0.7s
+tranform PedigreeSim outfile=sim_4x_pedigreesim_out_genotypes.dat ==> sim_4x_truegeno.vcf.gz
+tranform PedigreeSim outfile=sim_4x_pedigreesim_out_founderalleles.dat ==> sim_4x_trueorig.vcf.gz
+start simulating genotypic errors
+tused by simulating missings and errors: 2.4s
+observed genofile = sim_4x_geno.vcf.gz
+End, 2026-11-02T23:08:49, tused = 40.2 seconds by polyoriginsim
+============================================================================
