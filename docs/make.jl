@@ -41,7 +41,7 @@ makedocs(
     ]
 )
 
-# deploydocs(;
-#     repo="github.com/chaozhi/PolyOrigin.jl.git",
-#     devbranch = "v2devp",
-# )
+deploydocs(;
+    repo="github.com/chaozhi/PolyOrigin.jl.git",
+    devbranch = "v2devp",
+)
