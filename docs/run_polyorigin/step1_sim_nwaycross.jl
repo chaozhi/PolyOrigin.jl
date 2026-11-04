@@ -5,7 +5,7 @@ pwd()
 
 ploidy = 4
 nfounder = 3
-famsize = [20,1]
+famsize = 20
 
 # simdata
 outstem = string("sim_", ploidy, "x")
@@ -13,7 +13,7 @@ fhaplofile = PolyOriginSim.simfhaplo(;
     ploidy,
     nchr = 1, 
     chrlenls = 100, 
-    nmarkerls = 200, 
+    nmarkerls = 150, 
     founderls = string.("P",1:nfounder), 
     outstem, 
 )
@@ -30,7 +30,7 @@ polyoriginsim(fhaplofile,pedfile;
     doseerror = 0.01,
     missfreq = 0.01,    
     isgbs = false, 
-    # gbsavgdepth = 20, 
+    # gbsavgdepth = 40, 
     # gbsallelicbias = LogNormal(0,0.3),
     # gbsoverdispersion = Exponential(0.1),
     outstem

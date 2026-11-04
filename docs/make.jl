@@ -30,19 +30,18 @@ makedocs(
         "Home" => "index.md", "Manual" => Any[
             "0 Get started" => "man/0_get_started.md",
             "1 Prepare input" => "man/1_prepare_input.md",
-            "2 Run polyOrigin" => "man/2_run_polyorigin.md",
+            "2 Run polyorigin" => "man/2_run_polyorigin.md",
             "3 Understand output" => "man/3_understand_output.md",
-            # "4 Examples" => "man/4_examples.md",
+            "4 Examples" => "man/4_examples.md",
         ],
-        # "Library" => Any[
-        #     "Public" => "lib/public.md",
-        # ],
-        # "Index" => "symbols.md",
+        "Library" => Any[
+            "Public" => "lib/public.md",
+        ],
+        "Index" => "symbols.md",
     ]
 )
 
-deploydocs(;
-    repo="github.com/chaozhi/PolyOrigin.jl.git",
-    devbranch = "v2devp",
-)
-
+# deploydocs(;
+#     repo="github.com/chaozhi/PolyOrigin.jl.git",
+#     devbranch = "v2devp",
+# )

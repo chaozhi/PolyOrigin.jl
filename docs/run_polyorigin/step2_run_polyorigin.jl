@@ -21,9 +21,26 @@ phasedgeno, polyancestry, joinedancestry = polyorigin(genofile,pedfile;
 );
 0
 
-@time acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
-acc
+trueorig = readtruegeno!(trueorigfile,joinedancestry)        
+plotcondprob(joinedancestry;                 
+    ismidparent = true, 
+    individual = 4,        
+    dpi = 100,
+    trueorig,
+)
 
+acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
+df = PolyOrigin.acc2df(acc)
+show(df, row_labels=nothing,eltypes=false)
+
+using DataFrames
+
+kls[]
 # delete output files
 cd(@__DIR__)
 rm.(filter(x->occursin(outstem,x), readdir()))
+
+
+acc["founder_phasing"]
+
+replace(string(acc["founder_phasing"])," "=>"")

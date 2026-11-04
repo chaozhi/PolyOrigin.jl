@@ -29,7 +29,13 @@ julia>]up PolyOrigin
 
 From the julia REPL mode, run
 ```
-julia>using PolyOrigin
+julia> using PolyOrigin
+julia> polyorigin(genofile,pedfile)
+```
+
+From command line interface (CLI), run
+```
+> polyorigin -g genofile -p pedfile
 ```
 
 ## Help
@@ -43,8 +49,13 @@ To get help on a name, type `?` and the name, e.g. polyorigin
 julia>?polyorigin
 
 julia>?polyorigin!
-
 ```
+
+From command line interface (CLI), run
+```
+>polyorigin --help
+```
+
 
 # Output files
 
@@ -59,13 +70,9 @@ Output file | Description
 `outstem_plots.tar` |  a folder contains all figures if isplot = true
 `outstem_chrpairing.csv` | summary of the inference results on chromosomal pairing. 
 
-## Example
-```
-julia> polyorigin("geno.vcf.gz","ped.csv")
-```
 
 ## Citing PolyOrigin
 
  If you use PolyOrigin2 in your analyses and publish your results, please cite the article:
 
-  *Zheng C, Resende MFR, Munoz PR, and Endelman JB. 2026. Haplotype reconstruction in multi-generational diploid and tetraploid populations. 
+  * Zheng C, Resende MFR, Munoz PR, and Endelman JB. 2026. Haplotype reconstruction in multi-generational diploid and tetraploid populations. 

@@ -1,4 +1,4 @@
-polyoriginsim, logfile=sim_4x_polyoriginsim.log, 2026-11-02T23:08:08
+polyoriginsim, logfile=sim_4x_polyoriginsim.log, 2026-11-03T16:11:12
 ===============================polyoriginsim================================
 Julia version: 1.13.2
 Status `C:\Users\zheng026\.julia\environments\v1.13\Project.toml`
@@ -51,11 +51,11 @@ chrom chr1
 write file sim_4x_pedigreesim_out_alleledose.dat
 chrom chr1
 Process(`java -jar 'c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOriginSim\PolyOriginSim\PedigreeSim_compiled\PedigreeSim.jar' 'c:\Users\zheng026\OneDrive - Wageningen University & Research\Chaozhi\Workspace\JuliaWorkspace\Workspace_PolyOrigin2\PolyOrigin\docs\run_polyorigin\sim_4x_pedigreesim_in.par'`, ProcessExited(0))
-tused by PedigreeSim: 0.7s
+tused by PedigreeSim: 0.6s
 tranform PedigreeSim outfile=sim_4x_pedigreesim_out_genotypes.dat ==> sim_4x_truegeno.vcf.gz
 tranform PedigreeSim outfile=sim_4x_pedigreesim_out_founderalleles.dat ==> sim_4x_trueorig.vcf.gz
 start simulating genotypic errors
-tused by simulating missings and errors: 2.4s
+tused by simulating missings and errors: 1.6s
 observed genofile = sim_4x_geno.vcf.gz
-End, 2026-11-02T23:08:49, tused = 40.2 seconds by polyoriginsim
+End, 2026-11-03T16:11:19, tused = 6.6 seconds by polyoriginsim
 ============================================================================

@@ -35,6 +35,16 @@ function calaccuracy!(truegenofile::AbstractString, trueorigfile::AbstractString
     OrderedDict(vcat(res_marker, res_pacc,res_offacc, res_orig))
 end
 
+
+function acc2df(acc::OrderedDict)
+    kls = collect(keys(acc))
+    vls = collect(values(acc))
+    popfirst!(vls)
+    df = DataFrame(vls)
+    insertcols!(df, 1, "group"=>kls[2:end])
+end
+
+
 function calmarkersum(truegeno::PolyGeno, polyest::JoinedPolyAncestry)
     truesnps = reduce(vcat, [i[!,:marker] for i in truegeno.markermap])
     estsnps =  reduce(vcat,[i[!,:marker] for i in polyest.markermap])
