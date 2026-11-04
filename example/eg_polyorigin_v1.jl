@@ -6,14 +6,9 @@ nprocs() < 4 && addprocs(4-nprocs())
 using Revise
 using Distributions
 using PolyOrigin
-
 cd(@__DIR__)
 pwd()
 
-exportall(PolyOrigin)
-
-# julia --project=. -e "using PolyOrigin; PolyOrigin.comonicon_install()"
-# julia --project=. -e 'using PolyOrigin' -- --help
 
 outstem = "outstem_4x"
 truegenofile = outstem*"_truegeno.vcf"
