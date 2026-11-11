@@ -52,7 +52,7 @@ function Pedigree(df::DataFrame)
         gender=string.(df[!,:gender])
         unknown=setdiff(union(gender),["notapplicable","female","male"])
         if !isempty(unknown)
-            @error("unknown genders = ", unknown, "; gender must be female, male, or notapplicable")
+            @error string("unknown genders = ", unknown, "; gender must be female, male, or notapplicable")
         end
     else
         gender = repeat(["notapplicable"],n)
@@ -67,8 +67,11 @@ function Pedigree(df::DataFrame)
         ploidy = df[!,:ploidy]
         # TODO: check 
     else
-        ploidy= repeat([2],n) # default is diploid
+        msg = string("column ploidy is missing in pedfile, and set ploidy=2")
+        @warn msg 
+        ploidy= repeat([2],n) # default is diploid        
     end
+
     member,mother,father=[String.(strip.(string.(df[!,i]))) for i=[:member, :mother,:father]]
     allunique(member) || @error("pedigree members are not unique")
     set_founder_missing!(mother)
@@ -220,7 +223,6 @@ function readped(pedfile::AbstractString; delim=',', commentstring="##")
     rename_ped_cols!(df)
     Pedigree(df)
 end
-
 
 function rename_ped_cols!(peddf::AbstractDataFrame)
     colnamels = lowercase.(strip.(names(peddf)))    

@@ -10,7 +10,7 @@ function infer_skeletonmap(chrparentgeno::AbstractMatrix,
     polyped::PolyPed,
     targetls::AbstractVector,
     phaseerror_midparent::Union{Nothing,Real},
-    isrefineerror::Bool, 
+    isinfererror::Bool, 
     inputdoseerrorls::AbstractVector, 
     inputbaseerrorls::AbstractVector, 
     inputallelicbiasls::AbstractVector,         
@@ -49,7 +49,7 @@ function infer_skeletonmap(chrparentgeno::AbstractMatrix,
         startt = time()        
         # msg = string("chr=", chrid,", it=", it, ", #skeleton=",length(skeleton),", #bin=",nbin)
         msg = string("chr=", chrid,", it=", it, ", #skeleton=",length(skeleton))
-        if isrefineerror
+        if isinfererror
             infer_errorls!(nothing, nothing, chrparentgeno, derivedgeno, chroffgeno, chroffformat, chrmultiallele, 
                 bvpair, priorspace, skeletonprior, polyped, targetls;     
                 phaseerror_midparent,doseerrorls, baseerrorls, allelicbiasls, overdispersionls, errorprior, 

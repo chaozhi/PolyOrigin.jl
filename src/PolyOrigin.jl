@@ -26,7 +26,7 @@ export
     polyorigin,polyorigin!,    
     formpolygeno,readpolygeno, savepolygeno, savegenodata, 
     readpolyancestry,savepolyancestry,        
-    plotcondprob, animcondprob, 
+    plotcondprob, animcondprob, plotmapcomp, 
     readtruegeno!,calaccuracy!
 
 # deactivate plot display 

@@ -63,7 +63,7 @@ function polyorigin(genofile::AbstractString,pedfile::AbstractString;
     chrpairing_phase::Union{Nothing,Integer}=nothing,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,        
+    markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,        
     bindis::Real=1e-3, # cM
     isparentdoseerror::Union{Nothing,Bool}=nothing, 
     phaseerror_midparent::Union{Nothing,Real} = 0.01, 
@@ -81,7 +81,7 @@ function polyorigin(genofile::AbstractString,pedfile::AbstractString;
     isrefine::Bool=true,
     isrefineorder::Bool=false,
     isrefinedis::Union{Nothing,Bool}=nothing,
-    isrefineerror::Union{Nothing,Bool}=nothing,     
+    isinfererror::Union{Nothing,Bool}=nothing,     
     ismarkerspecific::Union{Nothing,Bool}=nothing,
     doseerror::ErrorSetting=ErrorSetting(name="doseerror"),     
     allelicbias::ErrorSetting=ErrorSetting(name="allelicbias"), 
@@ -97,7 +97,7 @@ function polyorigin(genofile::AbstractString,pedfile::AbstractString;
     isimputefirst::Bool = true, 
     isparallel::Union{Nothing,Bool}=nothing,     
     isplot::Bool=true,
-    nplot_subpop::Integer=5, 
+    nplot_subpop::Integer=1, 
     samplesize::Integer=1000,
     outstem::Union{Nothing,AbstractString}="outstem",
     outext::AbstractString = ".vcf.gz", 
@@ -127,13 +127,13 @@ function polyorigin(genofile::AbstractString,pedfile::AbstractString;
             "commentstring = ", commentstring)
     printconsole(io,verbose,msg)    
     phasedpolygeno, polyancestry, joinedpolyancestry =polyorigin!(polygeno;
-        chrpairing_phase,chrpairing,chrsubset,snpsubset, bindis,
+        chrpairing_phase,chrpairing,chrsubset,markersubset, bindis,
         phaseerror_midparent,iscorrectparent,  isparentdoseerror,  
         isparallel,isdelvuong,delsiglevel,
         maxstuck,maxiter,minrun,maxrun, byparent, byneighbor,
         refhapfile,trueorigfile, isrefine,isrefineorder,isrefinedis, 
         maxwinsize,inittemperature,coolingrate,stripdis,skeletonsize,
-        isrefineerror, doseerror,baseerror,allelicbias,overdispersion, 
+        isinfererror, doseerror,baseerror,allelicbias,overdispersion, 
         tukeyfence, isgreedy, ismarkerspecific,samplesize, 
         isimputefirst, isplot, nplot_subpop, outstem, outext, logfile=io,workdir,verbose
     )    
@@ -166,7 +166,7 @@ bivalent formations and 44 being bivalent and quadrivalent formations.
 with nothing denoting all chromosomes.
 Delete chromosome indices that are out of range.
 
-`snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
+`markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
 to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
@@ -252,7 +252,7 @@ function polyorigin!(polygeno::PolyGeno;
     chrpairing_phase::Union{Nothing,Integer}=nothing,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,        
+    markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,        
     byparent::Union{Nothing,Bool}=nothing,            
     byneighbor::Union{Nothing,Bool}=nothing,
     bindis::Real=1e-3,  # centiMorgan        
@@ -266,7 +266,7 @@ function polyorigin!(polygeno::PolyGeno;
     isrefine::Bool=true,
     isrefineorder::Bool=false,
     isrefinedis::Union{Nothing,Bool}=nothing,
-    isrefineerror::Union{Nothing,Bool}=nothing,    
+    isinfererror::Union{Nothing,Bool}=nothing,    
     ismarkerspecific::Union{Nothing,Bool}=nothing,
     isparentdoseerror::Union{Nothing,Bool}=nothing, 
     phaseerror_midparent::Union{Nothing,Real} = 0.01,     
@@ -340,9 +340,9 @@ function polyorigin!(polygeno::PolyGeno;
     empty!(lru_site_derivedgeno)         
     phasedgeno = polyphase!(polygeno;
         isparallel = isnothing(isparallel) ? true : isparallel, 
-        chrpairing_phase, chrsubset, snpsubset,byparent, byneighbor, bindis, 
+        chrpairing_phase, chrsubset, markersubset,byparent, byneighbor, bindis, 
         phaseerror_midparent, isparentdoseerror, 
-        iscorrectparent, isrefineerror ,            
+        iscorrectparent, isinfererror ,            
         doseerror, baseerror, allelicbias, overdispersion, 
         isdelvuong,  delsiglevel,isgreedy, ismarkerspecific, tukeyfence, 
         maxstuck, maxiter,minrun, maxrun, refhapfile,
@@ -351,8 +351,8 @@ function polyorigin!(polygeno::PolyGeno;
     if isrefine         
         polyrefine!(phasedgeno;
             isparallel = isnothing(isparallel) ? true : isparallel,             
-            chrpairing, chrsubset=nothing, snpsubset=nothing, bindis,             
-            iscorrectparent, isrefineerror,              
+            chrpairing, chrsubset=nothing, markersubset=nothing, bindis,             
+            iscorrectparent, isinfererror,              
             phaseerror_midparent, doseerror,baseerror,allelicbias,overdispersion, tukeyfence,     
             byneighbor, isrefineorder, isrefinedis, isdelvuong,  delsiglevel,            
             maxwinsize, inittemperature,
@@ -373,7 +373,7 @@ function polyorigin!(polygeno::PolyGeno;
         end
     end        
     polyancestry, joinedancestry = polyreconstruct!(phasedgeno;
-        chrpairing, chrsubset=nothing, snpsubset=nothing, bindis, 
+        chrpairing, chrsubset=nothing, markersubset=nothing, bindis, 
         trueorigfile, 
         tukeyfence = isnothing(tukeyfence) ? 3 : tukeyfence, 
         iscorrectparent = isnothing(iscorrectparent) ? true : iscorrectparent, 

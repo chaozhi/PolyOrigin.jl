@@ -17,6 +17,7 @@ end
 
 tryusing("PolyOrigin", pkgurl = "https://github.com/chaozhi/PolyOrigin.jl")
 tryusing("ArgParse")
+tryusing("Distributed")
 
 function parse_commandline()
     s = ArgParseSettings(
@@ -24,8 +25,8 @@ function parse_commandline()
         version = string(pkgversion(PolyOrigin)), 
         add_version = false
     )
-    s.description = "Haplotype reconstruction in polypoid multiparental populations"
-    workdir = pwd()
+    s.description = "Haplotype reconstruction in multigenerational diploid or polypoid pedigrees"   
+    workdir = pwd() 
     @add_arg_table! s begin
         "--genofile", "-g"
         help = "filename for genotypic data file"
@@ -35,18 +36,22 @@ function parse_commandline()
         help = "filename for pedigree info"
         arg_type = AbstractString
         required = true
-        "--delimchar"
-        help = "text delimiter"
-        arg_type = AbstractChar
-        default = ','
-        "--missingstring"
-        help = "string code for missing value"
+        # "--delimchar"
+        # help = "text delimiter"
+        # arg_type = AbstractChar
+        # default = ','
+        # "--missingstring"
+        # help = "string code for missing value"
+        # arg_type = AbstractString
+        # default = "NA"
+        # "--commentstring"
+        # help = "rows that begins with commentstring will be ignored"
+        # arg_type = AbstractString
+        # default = "#"
+        "--format"
+        help = "preferred format: GT, AD, or GP. formatpriority = [format, GT]"
         arg_type = AbstractString
-        default = "NA"
-        "--commentstring"
-        help = "rows that begins with commentstring will be ignored"
-        arg_type = AbstractString
-        default = "#"
+        default = "AD"
         "--isphysmap"
         help = "if true, input markermap is physical map (location in bp)"
         arg_type = Bool
@@ -70,26 +75,26 @@ function parse_commandline()
         e.g, \"[2,10]\" denotes the second and tenth chromosomes"
         arg_type = String
         default = "nothing"
-        "--snpthin"
-        help = "subset of markers by taking every snpthin-th markers"
+        "--markerthin"
+        help = "subset of markers by taking every markerthin-th markers"
         arg_type = Int
         default = 1
-        "--maxstuck"
-        help = "the max number of consecutive iterations that are rejected
-        in a phasing run"
-        arg_type = Int
-        default = 5
-        "--maxiter"
-        help = "the max number of iterations in a phasing run"
-        arg_type = Int
-        default = 30
+        # "--maxstuck"
+        # help = "the max number of consecutive iterations that are rejected
+        # in a phasing run"
+        # arg_type = Int
+        # default = 5
+        # "--maxiter"
+        # help = "the max number of iterations in a phasing run"
+        # arg_type = Int
+        # default = 30
         "--minrun"
-        help = "if the min number of phasing runs that are at the same local maximimum or
+        help = "if the number of phasing runs that are at the same local maximimum or
         have the same parental phases reaches minrun, phasing algorithm will stop before reaching the maxrun."
         arg_type = Int
         default = 3
         "--maxrun"
-        help = "the max number of phasing runs"
+        help = "max number of phasing runs"
         arg_type = Int
         default = 3
         "--refhapfile"
@@ -102,6 +107,10 @@ function parse_commandline()
         help = "true ancestral origin file produced by PolyoriginSim for setting absoluting phasing of ancestral orgin states"
         arg_type = AbstractString
         default = "nothing"
+        "--isinfererror"
+        help = "if true, estimating genotypic error parameters"
+        arg_type = Bool
+        default = true
         "--isrefine"
         help = "if true, refine marker map"
         arg_type = Bool
@@ -109,41 +118,41 @@ function parse_commandline()
         "--isrefineorder"
         help = "if true, refine marker mordering, valid only if isrefine=true"
         arg_type = Bool
-        default = false
-        "--isrefineerror"
-        help = "if true, estimating genotypic error parameters"
-        arg_type = Bool
-        default = true
+        default = false        
         "--maxwinsize"
-        help = "max size of sliding windown in map refinning"
+        help = "max size of sliding windown in map refinning, valid only if isrefineordere=true"
         arg_type = Int
-        default = 50
+        default = 50        
         "--inittemperature"
-        help = "initial temperature of simulated annealing in map refinning"
+        help = "initial temperature of simulated annealing in map refinning, valid only if isrefineordere=true"
         arg_type = Float64
-        default = 4.0
+        default = 4.0        
         "--coolingrate"
-        help = "cooling rate of annealing temperature in map refinning"
+        help = "cooling rate of annealing temperature in map refinning, valid only if isrefineordere=true"
         arg_type = Float64
-        default = 0.5
+        default = 0.5        
         "--stripdis"
         help = "a chromosome end in map refinement is removed if it has a distance gap > stripdis
         (centiMorgan) and it contains less than 5% markers."
         arg_type = Float64
-        default = 20.0
+        default = 20.0        
         "--skeletonsize"
         help = "the number of markers in the skeleton map that is used
         to reduce map length inflation by subsampling markers"
         arg_type = Int
         default = 100
-        "--nworker"
-        help = "number of parallel workers for computing among chromosomes"
-        arg_type = Int
-        default = 1
         "--isplot"
         help = "if true, plot haploprob"
         arg_type = Bool
-        default = false
+        default = true
+        "--nplot_subpop"
+        help = "number of haploprob-plots per sub-population"
+        arg_type = Int
+        default = 1
+        "--nworker", "-n"
+        help = "number of parallel workers for computing among chromosomes"
+        arg_type = Int
+        default = 1
         "--outstem", "-o"
         help = "stem of output filenames"
         arg_type = AbstractString
@@ -156,7 +165,7 @@ function parse_commandline()
         help = "if true, print messages on console"
         arg_type = Bool
         default = true
-        "--version", "-V"
+        "--version"
         action = :show_version
         help = "show PolyOrigin's version and exit"
     end
@@ -172,9 +181,11 @@ end
 function main(args::Vector{String})
     parsed_args = parse_commandline()
     verbose = parsed_args[:verbose]
+    isrefineorder = parsed_args[:isrefineorder]
     if verbose
         println("Parsed arguments:")
         for (arg, val) in parsed_args
+            !isrefineorder && in(arg, [:maxwinsize, :inittemperature, :coolingrate]) && continue
             if isnothing(val)
                 println("  $arg  =>  nothing ")
             else
@@ -190,15 +201,14 @@ function main(args::Vector{String})
     delete!(parsed_args, :genofile)
     delete!(parsed_args, :pedfile)
     push!(parsed_args, :logfile => logfile)
-    snpthin = parsed_args[:snpthin]
+    markerthin = parsed_args[:markerthin]
     # assum the max number of markers in a linkage group < 10^6
-    snpsubset= snpthin<=1 ? nothing : 1:snpthin:10^6
-    delete!(parsed_args, :snpthin)
-    push!(parsed_args, :snpsubset => snpsubset)
+    markersubset= markerthin<=1 ? nothing : 1:markerthin:10^6
+    delete!(parsed_args, :markerthin)
+    push!(parsed_args, :markersubset => markersubset)
     nworker = parsed_args[:nworker]
     isparallel = nworker <= 1 ? false : true
     if isparallel
-        tryusing("Distributed")
         addprocs(nworker) # add worker processes on local machine
         @info string("#parallel workers =", nworkers())
         @eval @everywhere using PolyOrigin
@@ -209,7 +219,10 @@ function main(args::Vector{String})
     if !isnothing(a) && occursin("[", a) && occursin("]", a)
         parsed_args[:chrsubset] = string2vec(a, Int)
     end
-    @time polyOrigin(genofile, pedfile; parsed_args...)
+    format = parsed_args[:format]
+    formatpriority = [format, "GT"]
+    delete!(parsed_args, :format)
+    @time polyorigin(genofile, pedfile; formatpriority, parsed_args...)
     workdir = parsed_args[:workdir]
     outfiles = filter(x -> occursin(outstem, x), readdir(workdir))
     verbose && println("output files: ", join(outfiles, ","))

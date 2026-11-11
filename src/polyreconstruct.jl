@@ -20,7 +20,7 @@ bivalent formations and 44 being bivalent and quadrivalent formations.
 to be considered, with nothing denoting all chromosomes.
 Delete chromosome indices that are out of range.
 
-`snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
+`markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
 to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
@@ -48,7 +48,7 @@ function polyreconstruct!(phasedgeno::PolyGeno;
     baseerror::Real=0.001,
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,    
+    markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,    
     bindis::Real=1e-3,     
     iscorrectparent::Union{Nothing,Bool}=nothing,     
     isimputefirst::Bool = true, 
@@ -78,7 +78,7 @@ function polyreconstruct!(phasedgeno::PolyGeno;
         "baseerror = ",baseerror,"\n",
         "chrpairing = ",chrpairing, "\n",
         "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",             
+        "markersubset = ", isnothing(markersubset) ? "all markers" : markersubset,"\n",             
         "bindis = ", bindis, "cM\n",           
         "iscorrectparent = ", iscorrectparent, "\n",
         "isimputefirst = ", isimputefirst, msg_imputefirst, "\n",
@@ -99,8 +99,8 @@ function polyreconstruct!(phasedgeno::PolyGeno;
     printconsole(io,verbose,msg)
     info_polygeno(phasedgeno; io, verbose)    
     isnothing(chrsubset) || printconsole(io, verbose, string("chrsubset=",chrsubset))    
-    isnothing(snpsubset) || printconsole(io, verbose, string("snpsubset=",snpsubset))    
-    getsubpolygeno!(phasedgeno,chrsubset=chrsubset,snpsubset=snpsubset)    
+    isnothing(markersubset) || printconsole(io, verbose, string("markersubset=",markersubset))    
+    getsubpolygeno!(phasedgeno,chrsubset=chrsubset,markersubset=markersubset)    
     if isnothing(isparallel) || isnothing(isparallelind) 
         if nprocs()>1
             nmarker = sum([size(i,1) for i in phasedgeno.markermap])            

@@ -30,17 +30,10 @@ plotcondprob(joinedancestry;
 )
 
 acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
-df = PolyOrigin.acc2df(acc)
-show(df, row_labels=nothing,eltypes=false)
+# df = PolyOrigin.acc2df(acc)
+# show(df, row_labels=nothing,eltypes=false)
 
-using DataFrames
 
-kls[]
 # delete output files
 cd(@__DIR__)
 rm.(filter(x->occursin(outstem,x), readdir()))
-
-
-acc["founder_phasing"]
-
-replace(string(acc["founder_phasing"])," "=>"")

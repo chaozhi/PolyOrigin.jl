@@ -18,7 +18,7 @@ bivalent formations and 44 being bivalent and quadrivalent formations.
 to be considered, with nothing denoting all chromosomes.
 Delete chromosome indices that are out of range.
 
-`snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
+`markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
 to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
@@ -64,14 +64,14 @@ or stream for writing log.
 function polyrefine!(polygeno::PolyGeno;    
     chrpairing::Integer=44,
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,    
+    markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,    
     byneighbor::Union{Nothing,Bool}=nothing,    
     bindis::Real=1e-3, #cM
     isdelvuong::Bool=false,
     delsiglevel::Real=0.01,    
     isrefineorder::Bool=false,
     isrefinedis::Union{Nothing,Bool}=nothing,     
-    isrefineerror::Union{Nothing,Bool}=nothing,     
+    isinfererror::Union{Nothing,Bool}=nothing,     
     tukeyfence::Union{Nothing,Real}=nothing, 
     iscorrectparent::Union{Nothing,Bool}=nothing,     
     phaseerror_midparent::Union{Nothing,Real} = 0.01, 
@@ -102,14 +102,14 @@ function polyrefine!(polygeno::PolyGeno;
     msg = string("list of option values: \n",        
         "chrpairing = ",chrpairing, "\n",
         "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",        
+        "markersubset = ", isnothing(markersubset) ? "all markers" : markersubset,"\n",        
         "byneighbor = ",byneighbor,"\n",         
         "bindis = ", bindis, "cM\n",        
         "isdelvuong = ",isdelvuong,"\n",
         "delsiglevel = ",delsiglevel,"\n",
         "isrefineorder = ", isrefineorder, "\n",
         "isrefinedis = ", isrefinedis, "\n",
-        "isrefineerror = ", isrefineerror, "\n",
+        "isinfererror = ", isinfererror, "\n",
         "tukeyfence = ", tukeyfence, "\n",
         "iscorrectparent = ", iscorrectparent, "\n",
         "doseerror = ", doseerror, "\n",
@@ -133,8 +133,8 @@ function polyrefine!(polygeno::PolyGeno;
     printconsole(io,verbose,msg)
     info_polygeno(polygeno; io, verbose)    
     isnothing(chrsubset) || printconsole(io, verbose, string("chrsubset=",chrsubset))    
-    isnothing(snpsubset) || printconsole(io, verbose, string("snpsubset=",snpsubset))    
-    getsubpolygeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)
+    isnothing(markersubset) || printconsole(io, verbose, string("markersubset=",markersubset))    
+    getsubpolygeno!(polygeno,chrsubset=chrsubset,markersubset=markersubset)
     inputmap = deepcopy(polygeno.markermap)
     if isparallel && length(inputmap) == 1
         isparallel = false
@@ -145,10 +145,10 @@ function polyrefine!(polygeno::PolyGeno;
         isrefinedis = popsize >= 20
         printconsole(io, verbose, string("reset isrefinedis = ", isrefinedis))
     end
-    if isnothing(isrefineerror)
+    if isnothing(isinfererror)
         popsize = size(polygeno.polyped.offspringinfo,1)
-        isrefineerror = popsize >= 20
-        printconsole(io, verbose, string("reset isrefineerror = ", isrefineerror))
+        isinfererror = popsize >= 20
+        printconsole(io, verbose, string("reset isinfererror = ", isinfererror))
     end
     if isnothing(tukeyfence)
         popsize = size(polygeno.polyped.offspringinfo,1)
@@ -156,12 +156,12 @@ function polyrefine!(polygeno::PolyGeno;
         printconsole(io, verbose, string("reset tukeyfence = ", tukeyfence))
     end
     if isnothing(iscorrectparent) 
-        iscorrectparent = any([isrefinedis,isrefineerror, isrefineorder])
+        iscorrectparent = any([isrefinedis,isinfererror, isrefineorder])
         printconsole(io, verbose, string("reset iscorrectparent = ", iscorrectparent))
     end
-    b = [isrefinedis,isrefineerror, isrefineorder, iscorrectparent]
+    b = [isrefinedis,isinfererror, isrefineorder, iscorrectparent]
     if !any(b) 
-        msg = string("polyrefine is not performed since none of [isrefinedis,isrefineerror, isrefineorder, iscorrectparent] is true")
+        msg = string("polyrefine is not performed since none of [isrefinedis,isinfererror, isrefineorder, iscorrectparent] is true")
         @warn msg
         printconsole(io, false, "Warn: "*msg) 
         return polygeno
@@ -169,7 +169,7 @@ function polyrefine!(polygeno::PolyGeno;
     # maprefinement and error estimation
     tused = @elapsed isdel=maprefine_allchr!(polygeno; chrpairing, bindis, 
         isdelvuong, delsiglevel, 
-        iscorrectparent, isrefineerror, 
+        iscorrectparent, isinfererror, 
         phaseerror_midparent,doseerror,baseerror,allelicbias,overdispersion, tukeyfence,     
         stripdis,skeletonsize,isrefineorder,isrefinedis,           
         maxwinsize,inittemperature,coolingrate,
@@ -235,7 +235,7 @@ function maprefine_allchr!(inputpolygeno::PolyGeno;
     isdelvuong::Bool=false,
     delsiglevel::Real=0.01,
     iscorrectparent::Bool, 
-    isrefineerror::Bool, 
+    isinfererror::Bool, 
     isrefinedis::Bool,          
     phaseerror_midparent::Union{Nothing,Real},
     doseerror::ErrorSetting,
@@ -269,7 +269,7 @@ function maprefine_allchr!(inputpolygeno::PolyGeno;
         polygenols=[getsubpolygeno(polygeno,chrsubset=[chr]) for chr=1:nchr]
         resmap = pmap(x->maprefine_chr!(x,1; chrpairing, bindis,
             isdelvuong, delsiglevel, 
-            iscorrectparent, isrefineerror, 
+            iscorrectparent, isinfererror, 
             phaseerror_midparent,doseerror,baseerror,allelicbias,overdispersion,tukeyfence,     
             byneighbor, stripdis, skeletonsize,isrefineorder, isrefinedis, 
             maxwinsize,maxiter,inittemperature,coolingrate,
@@ -288,7 +288,7 @@ function maprefine_allchr!(inputpolygeno::PolyGeno;
         for chr=1:nchr
             res[chr] = first(maprefine_chr!(polygeno,chr; chrpairing, bindis,
                 isdelvuong, delsiglevel, 
-                iscorrectparent, isrefineerror, 
+                iscorrectparent, isinfererror, 
                 phaseerror_midparent,doseerror,baseerror,allelicbias,overdispersion,tukeyfence,     
                 byneighbor, stripdis, skeletonsize,isrefineorder,isrefinedis, 
                 maxwinsize,maxiter,inittemperature,coolingrate,io,verbose,verbosemore))
@@ -321,7 +321,7 @@ function maprefine_chr!(polygeno::PolyGeno, chr::Integer;
     isdelvuong::Bool=false,
     delsiglevel::Real=0.01,
     iscorrectparent::Bool, 
-    isrefineerror::Bool,
+    isinfererror::Bool,
     isrefinedis::Bool, 
     phaseerror_midparent::Union{Nothing,Real},
     doseerror::ErrorSetting,
@@ -359,7 +359,7 @@ function maprefine_chr!(polygeno::PolyGeno, chr::Integer;
         allelicbias.isinfer && push!(targetls,"allelicbias")
         overdispersion.isinfer && push!(targetls,"overdispersion")
     end   
-    isrefineerror = isrefineerror && !isempty(targetls)
+    isinfererror = isinfererror && !isempty(targetls)
     snporder=collect(1:size(chroffgeno,1))    
     ismissdoseerror = all(ismissing.(polygeno.markermap[chr][!,:doseerror]))
     ismissbaseerror = all(ismissing.(polygeno.markermap[chr][!,:baseerror]))
@@ -465,7 +465,7 @@ function maprefine_chr!(polygeno::PolyGeno, chr::Integer;
             nstuck += 1.0 # 5 iterations when refine only distance, since maxnstuck = 5 in this case
         end
         # update doseerror
-        if isrefineerror            
+        if isinfererror            
             loglls_err, ndel_err = infer_errorls!(nothing, nothing, chrparentgeno, derivedgeno, chroffgeno, 
                 chroffformat, chrmultiallele, bvpair, priorspace, priorprocess, polyped, targetls;     
                 phaseerror_midparent,doseerrorls, baseerrorls, allelicbiasls, overdispersionls, errorprior, 
@@ -564,7 +564,7 @@ function maprefine_chr!(polygeno::PolyGeno, chr::Integer;
             if isrefinedis && (isnothing(skeletonsize) || nseg >skeletonsize)                                
                 skeletonprior = infer_skeletonmap(chrparentgeno, chroffgeno, chroffformat, chrmultiallele, 
                     derivedgeno, bvpair, priorspace, priorprocess, polyped,targetls,
-                    phaseerror_midparent, isrefineerror, 
+                    phaseerror_midparent, isinfererror, 
                     doseerrorls, baseerrorls, allelicbiasls, overdispersionls, errorprior, 
                     errorsoftthresh,tukeyfence,errorhardthresh;
                     startit = it+1, skeletonsize, bindis, snporder, chrid, io, verbose, 

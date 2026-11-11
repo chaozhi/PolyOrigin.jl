@@ -104,7 +104,7 @@ bivalent formations and 44 being bi- and quadri-valent formations.
 to be considered, with nothing denoting all chromosomes.
 Delete chromosome indices that are out of range.
 
-`snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
+`markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing`: subset of markers
 to be considered, with nothing denoting all markers. within a chromosome, marker
 index starts from 1, and marker indices that are larger than the number of markers
 within the chromosome are deleted.
@@ -148,13 +148,13 @@ log file or IO for writing log. If nothing, no log file.
 """
 function polyphase!(polygeno::PolyGeno;    
     chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-    snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
+    markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
     chrpairing_phase::Union{Nothing,Integer}=nothing,    
     byparent::Union{Nothing,Bool}=nothing,            
     byneighbor::Union{Nothing,Bool}=nothing,     
     bindis::Real=1e-3,     
     iscorrectparent::Union{Nothing,Bool}=nothing,     
-    isrefineerror::Union{Nothing,Bool}=nothing,    
+    isinfererror::Union{Nothing,Bool}=nothing,    
     isparentdoseerror::Union{Nothing,Bool}=nothing, 
     phaseerror_midparent::Union{Nothing,Real} = 0.01, 
     tukeyfence::Union{Nothing,Real}=nothing, 
@@ -190,14 +190,14 @@ function polyphase!(polygeno::PolyGeno;
     end
     msg = string("list of option values: \n",
         "chrsubset = ", isnothing(chrsubset) ? "all chromosomes" : chrsubset,"\n",
-        "snpsubset = ", isnothing(snpsubset) ? "all markers" : snpsubset,"\n",        
+        "markersubset = ", isnothing(markersubset) ? "all markers" : markersubset,"\n",        
         "chrpairing_phase = ",chrpairing_phase, "\n",        
         "byparent = ", byparent,"\n",                            
         "byneighbor = ", byneighbor,"\n",                        
         "bindis = ", bindis,"cM\n",                                
         "isparentdoseerror = ", isparentdoseerror, "\n",
         "iscorrectparent = ", iscorrectparent, "\n", 
-        "isrefineerror = ", isrefineerror, "\n",                
+        "isinfererror = ", isinfererror, "\n",                
         "tukeyfence = ",tukeyfence,"\n",                
         "doseerror = ", doseerror, "\n",
         "baseerror = ",baseerror,"\n",        
@@ -225,11 +225,11 @@ function polyphase!(polygeno::PolyGeno;
     printconsole(io,verbose,msg)
     info_polygeno(polygeno; io, verbose)    
     isnothing(chrsubset) || printconsole(io, verbose, string("chrsubset=",chrsubset))    
-    isnothing(snpsubset) || printconsole(io, verbose, string("snpsubset=",snpsubset))    
-    getsubpolygeno!(polygeno,chrsubset=chrsubset,snpsubset=snpsubset)    
-    if isnothing(isrefineerror)
-        isrefineerror = true
-        printconsole(io, verbose, string("reset isrefineerror = ", isrefineerror))
+    isnothing(markersubset) || printconsole(io, verbose, string("markersubset=",markersubset))    
+    getsubpolygeno!(polygeno,chrsubset=chrsubset,markersubset=markersubset)    
+    if isnothing(isinfererror)
+        isinfererror = true
+        printconsole(io, verbose, string("reset isinfererror = ", isinfererror))
     end
     if isnothing(isparentdoseerror)
         maxploidy = maximum(polygeno.polyped.parentinfo[!,:ploidy])
@@ -324,7 +324,7 @@ function polyphase!(polygeno::PolyGeno;
         end        
         phases,resdict_err =parentalphasing_global(subpolygeno; 
             refhapfile, chrpairing_phase, byparent, byneighbor, iscorrectparent,  bindis,  
-            isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0, 
+            isinfererror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0, 
             doseerror, baseerror, allelicbias, overdispersion, 
             tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel,  
             maxstuck,maxiter,minrun,maxrun,runblocksize, 
@@ -344,7 +344,7 @@ function polyphase!(polygeno::PolyGeno;
         end        
         phases,resdict_err =parentalphasing_global(polygeno; 
             refhapfile, chrpairing_phase, byparent, byneighbor, iscorrectparent, bindis, 
-            isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0.01, 
+            isinfererror, isparentdoseerror, phaseerror_midparent, fixedphaseerror=0.01, 
             doseerror, baseerror, allelicbias,  overdispersion, 
             tukeyfence, isgreedy,ismarkerspecific, isdelvuong, delsiglevel, 
             maxstuck,maxiter,minrun=1,maxrun=1,runblocksize=1, 
@@ -510,7 +510,7 @@ function parentalphasing_global(polygeno::PolyGeno;
     byneighbor::Bool,          
     bindis::Real,
     iscorrectparent::Bool, 
-    isrefineerror::Bool,    
+    isinfererror::Bool,    
     isparentdoseerror::Bool,  
     phaseerror_midparent::Union{Nothing,Real},
     fixedphaseerror::Real,
@@ -589,16 +589,16 @@ function parentalphasing_global(polygeno::PolyGeno;
             msg = string("parallel phasing: chrls=",chrls, ", run=",runstart:runend)
             printconsole(io, verbose, msg)
             polygenofilels = vec(permutedims(polygenofilemtx[chrls,runstart:runend])) 
-            # isrefineerror2 = runstart <= min(minrun,maxrun) ? isrefineerror : false  # no error estimation would result in smaller logp!!          
+            # isinfererror2 = runstart <= min(minrun,maxrun) ? isinfererror : false  # no error estimation would result in smaller logp!!          
             parentalphasing_local(polygenofilels; chrpairing_phase, byparent, byneighbor, bindis,  
                 iscorrectparent, tukeyfence,                                 
-                isrefineerror,                 
+                isinfererror,                 
                 isparentdoseerror, phaseerror_midparent,fixedphaseerror, 
                 doseerror, baseerror, allelicbias, overdispersion,                                  
                 ismarkerspecific,isdelvuong, delsiglevel, isgreedy, 
                 maxstuck, maxiter, isparallel, outfile, io, verbose)		             
             update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,runend; 
-                isrefineerror, 
+                isinfererror, 
                 refparenthap, io, minrun, maxrun,verbose)      
             (isempty(chrls) || runend == maxrun) && break
             runstart = runend + 1
@@ -609,17 +609,17 @@ function parentalphasing_global(polygeno::PolyGeno;
             chrls = [chr]            
             for run in 1:maxrun
                 polygenofilels = [polygenofilemtx[chr,run]]                
-                # isrefineerror2 = run <= min(minrun,maxrun) ? isrefineerror : false                
+                # isinfererror2 = run <= min(minrun,maxrun) ? isinfererror : false                
                 parentalphasing_local(polygenofilels; chrpairing_phase, byparent, byneighbor,  bindis, 
                     iscorrectparent, tukeyfence,                                 
-                    isrefineerror,  
+                    isinfererror,  
                     isparentdoseerror, phaseerror_midparent,fixedphaseerror, 
                     doseerror, baseerror, allelicbias, overdispersion,  
                     ismarkerspecific, isdelvuong, delsiglevel, isgreedy, 
                     maxstuck, maxiter, isparallel=false, outfile, io, verbose)	
                 if run >= min(minrun, maxrun)
                     update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,run; 
-                        isrefineerror, 
+                        isinfererror, 
                         refparenthap, io, minrun, maxrun,verbose)                      
                     isempty(chrls) && break                   
                 end
@@ -655,7 +655,7 @@ end
 
 function update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofilemtx,runend; 
     refparenthap::Union{Nothing,AbstractVector},
-    isrefineerror::Bool, 
+    isinfererror::Bool, 
     io::Union{Nothing,IO}, minrun::Integer, maxrun::Integer,
     verbose::Bool)       
     for chr in chrls
@@ -707,7 +707,7 @@ function update_phasedict_chrls!(phasedict, chrls, chridls, outfile,polygenofile
         disls_phase = first.(dis)        
         disls_perm =  last.(dis)
         fixedparentls = findall(sum([i .<= thresdiff for i in disls_perm]) .>= max(2,minrun)) 
-        if 1 <= length(fixedparentls) < nparent || isrefineerror           
+        if 1 <= length(fixedparentls) < nparent || isinfererror           
             # doseerrorls, baseerrorls, allelicbiasls, overdispersionls         
             besterrls = resls[best][end-3:end]
             remainfilels = polygenofilemtx[chr,runend+1:end]            
@@ -847,7 +847,7 @@ function parentalphasing_local(polygenofilels::AbstractVector;
     byneighbor::Bool,    
     bindis::Real, 
     iscorrectparent::Bool, 
-    isrefineerror::Bool,   
+    isinfererror::Bool,   
     isparentdoseerror::Bool,
     phaseerror_midparent::Union{Nothing,Real},
     fixedphaseerror::Real,
@@ -882,7 +882,7 @@ function parentalphasing_local(polygenofilels::AbstractVector;
             logfilels = [string(tempid, "_chr",chr, "_run",run,".log") for (chr, chrid, run) in chrrunls]
             try
                 resls = pmap((x,y,z)->parentalphasing_chr_run(x; chrpairing_phase, byparent, byneighbor, bindis,  
-                    iscorrectparent, isrefineerror, isparentdoseerror, phaseerror_midparent, fixedphaseerror,
+                    iscorrectparent, isinfererror, isparentdoseerror, phaseerror_midparent, fixedphaseerror,
                     doseerror, baseerror, allelicbias,  overdispersion, chrliketempfile=z, 
                     tukeyfence, isgreedy,ismarkerspecific, isdelvuong, delsiglevel, 
                     maxstuck, maxiter, logio=y, verbose), polygenofilels, logfilels,tempfilels)				                    
@@ -907,7 +907,7 @@ function parentalphasing_local(polygenofilels::AbstractVector;
             # runres: phaplo, bvpair,logp, logphis	                                    
             for i in eachindex(polygenofilels,chrrunls,tempfilels)				
                 runres = parentalphasing_chr_run(polygenofilels[i]; chrpairing_phase, byparent, byneighbor,  bindis,
-                    iscorrectparent, isrefineerror, isparentdoseerror, fixedphaseerror,
+                    iscorrectparent, isinfererror, isparentdoseerror, fixedphaseerror,
                     phaseerror_midparent,doseerror, baseerror, allelicbias,overdispersion,   
                     tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel, chrliketempfile=tempfilels[i],
                     maxstuck, maxiter, logio=io, verbose)		
@@ -934,7 +934,7 @@ function parentalphasing_chr_run(polygenofile::AbstractString;
     byneighbor::Bool,    
     bindis::Real,
     iscorrectparent::Bool, 
-    isrefineerror::Bool,    
+    isinfererror::Bool,    
     isparentdoseerror::Bool,
     phaseerror_midparent::Union{Nothing,Real},
     fixedphaseerror,
@@ -970,7 +970,7 @@ function parentalphasing_chr_run(polygenofile::AbstractString;
             ", readpolygeno, tused=", round(tused,digits=1),"s"))		                        
         # fill_parent_missing!(polygeno,chr)
         res = parentalphasing_chr_run(polygeno, chr; chrpairing_phase, byparent, byneighbor,  bindis, 
-            iscorrectparent, isrefineerror, isparentdoseerror, fixedphaseerror,
+            iscorrectparent, isinfererror, isparentdoseerror, fixedphaseerror,
             phaseerror_midparent,doseerror, baseerror, allelicbias, overdispersion, 
             tukeyfence, isgreedy, ismarkerspecific, isdelvuong, delsiglevel, 
             maxstuck,maxiter,run, chrliketempfile, io,verbose)                
@@ -986,7 +986,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
     byneighbor::Bool,        
     bindis::Real,
     iscorrectparent::Bool, 
-    isrefineerror::Bool,    
+    isinfererror::Bool,    
     isparentdoseerror::Bool,  
     phaseerror_midparent::Union{Nothing,Real},
     fixedphaseerror::Real, 
@@ -1019,7 +1019,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
         allelicbias.isinfer && push!(targetls,"allelicbias")
         overdispersion.isinfer && push!(targetls,"overdispersion")
     end        
-    isrefineerror = isrefineerror && !isempty(targetls)    
+    isinfererror = isinfererror && !isempty(targetls)    
     errorprior = (doseerror=doseerror.prior, baseerror = baseerror.prior, 
         allelicbias = allelicbias.prior, overdispersion = overdispersion.prior)
     errorsoftthresh = (doseerror = doseerror.softthresh, baseerror = baseerror.softthresh, 
@@ -1066,7 +1066,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
         setpriorprocess!(priorprocess,findall(isdells),bindis)
     end        
     
-    if isrefineerror && in("doseerror",targetls)
+    if isinfererror && in("doseerror",targetls)
         if isa(estdoseerror,AbstractVector)  
             estdoseerror .=  [i > 1e-4 ? rand(Uniform(1e-4, i)) : i for i in estdoseerror]
         else 
@@ -1075,7 +1075,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
             end
         end
     end
-    # if isrefineerror && in("baseerror",targetls)
+    # if isinfererror && in("baseerror",targetls)
     #     if isa(estbaseerror,AbstractVector) 
     #         estbaseerror .=   [i > 1e-5 ? rand(Uniform(1e-5,i)) : i for i in estbaseerror] 
     #     else
@@ -1179,7 +1179,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
             istucking = !alwaysaccept && (nstuck > 0 || (it >= maxiter - 1) || ndiff == 0)
             istucking && (it_1ststuck = it)              
         end        
-        if isrefineerror && !isempty(targetls) && (!upbyblock || (upbyblock && (nstuck == 0 || it - it_1ststuck <= 0) || ndel_err>0))            
+        if isinfererror && !isempty(targetls) && (!upbyblock || (upbyblock && (nstuck == 0 || it - it_1ststuck <= 0) || ndel_err>0))            
             vartargetls2 = istucking ? vartargetls : setdiff(vartargetls,["doseerror","baseerror"])            
             t_var= @elapsed if isempty(vartargetls2)                
                 ndel_err = -1
@@ -1313,7 +1313,7 @@ function parentalphasing_chr_run(polygeno::PolyGeno, chr::Integer;
             end       
         end    
     end    
-    if !isempty(targetls) && isrefineerror
+    if !isempty(targetls) && isinfererror
         msg = string("chr=",chrid,", run=", run, ", ")
         msg *= tostring_errorprior(errorprior,targetls)
         printconsole(io,verbose,msg)     

@@ -1,4 +1,4 @@
-# Run polyorigin
+# Run `polyorigin`
 
 Run function [`polyorigin`](@ref) for haplotype reconstruction in diploid or tetraploid multi-generation pedigrees. 
 
@@ -17,6 +17,7 @@ phasedgeno, polyancestry, joinedancestry = polyorigin(genofile,pedfile;
     isphysmap = false,
     isrefine = true,    
     isplot = false, 
+    maxrun = 1, 
     refhapfile = truegenofile, 
     trueorigfile = trueorigfile,        
     workdir,
@@ -31,7 +32,6 @@ The optional true files are used only for calibrating absolute phase (that is th
 
 ```@example 1
 acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
-using DataFrames # hide 
 df = PolyOrigin.acc2df(acc) # hide
 show(df, row_labels=nothing,eltypes=false, summary=false) # hide
 ```

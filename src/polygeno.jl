@@ -9,7 +9,7 @@ keyword-based struct for the setting of an error parameter.
 
 `name::String`: name of an error parameter. It is required and must be "doseerror", "allelicbias", "overdispersion", or "baseerror". 
 
-`isinfer::Bool=true`: infer the error parameter only if isrefineerror && isinfer is true. 
+`isinfer::Bool=true`: infer the error parameter only if isinfererror && isinfer is true. 
 
 `prior::Distribution`: prior distribution of an error rate. 
 
@@ -720,31 +720,31 @@ end
 
 function getsubpolygeno!(polygeno::PolyGeno;
         chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-        snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
+        markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
     markermap = polygeno.markermap
     nchr=length(markermap)
     nsnp = max(size.(polygeno.markermap,1)...)
     chrsubset2 = isnothing(chrsubset) ? (1:nchr) : chrsubset[chrsubset.<= nchr]
-    snpsubset2 = isnothing(snpsubset) ? (1:nsnp) : snpsubset
-    snpsubsetlist = [snpsubset2[snpsubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
-    polygeno.markermap= map((x,y)->markermap[x][y,:],chrsubset2,snpsubsetlist)
-    polygeno.parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,snpsubsetlist)
-    polygeno.offspringgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,snpsubsetlist)
+    markersubset2 = isnothing(markersubset) ? (1:nsnp) : markersubset
+    markersubsetlist = [markersubset2[markersubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
+    polygeno.markermap= map((x,y)->markermap[x][y,:],chrsubset2,markersubsetlist)
+    polygeno.parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,markersubsetlist)
+    polygeno.offspringgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,markersubsetlist)
     polygeno
 end
 
 function getsubpolygeno(polygeno::PolyGeno;
         chrsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing,
-        snpsubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
+        markersubset::Union{Nothing,AbstractRange,AbstractVector}=nothing)
     markermap = polygeno.markermap
     nchr=length(markermap)
     nsnp = max(size.(polygeno.markermap,1)...)
     chrsubset2 = isnothing(chrsubset) ? (1:nchr) : chrsubset[chrsubset.<= nchr]
-    snpsubset2 = isnothing(snpsubset) ? (1:nsnp) : snpsubset
-    snpsubsetlist = [snpsubset2[snpsubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
-    markermap= map((x,y)->markermap[x][y,:],chrsubset2,snpsubsetlist)
-    parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,snpsubsetlist)
-    offgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,snpsubsetlist)        
+    markersubset2 = isnothing(markersubset) ? (1:nsnp) : markersubset
+    markersubsetlist = [markersubset2[markersubset2 .<= size(markermap[ch],1)] for ch=chrsubset2]
+    markermap= map((x,y)->markermap[x][y,:],chrsubset2,markersubsetlist)
+    parentgeno=map((x,y)->polygeno.parentgeno[x][y,:],chrsubset2,markersubsetlist)
+    offgeno=map((x,y)->polygeno.offspringgeno[x][y,:],chrsubset2,markersubsetlist)        
     PolyGeno(deepcopy(polygeno.polyped), markermap,parentgeno,offgeno,deepcopy(polygeno.misc))
 end
 
