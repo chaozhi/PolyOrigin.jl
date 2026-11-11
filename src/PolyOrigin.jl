@@ -15,6 +15,7 @@ using LightGraphs, GraphRecipes, StatsPlots, Plots
 using JLD2, Tar, CodecZlib
 using ProgressMeter, ThreadsX
 using LRUCache
+using Artifacts
 
 export
 
@@ -69,5 +70,6 @@ include("polyorigin_fun.jl")
 include("polyplot.jl")
 include("polyplot_valent.jl")
 include("calaccuracy.jl")
+include("get_datafile.jl")
 
 end # module

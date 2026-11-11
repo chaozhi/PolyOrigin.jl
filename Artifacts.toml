@@ -1,7 +1,7 @@
 [polyorigin2_datasets]
-git-tree-sha1 = "7e9bd01ff80c6f50dfcc21875b6c8242f7bb2094"
+git-tree-sha1 = "20f32dc18865a629535a6d9b488879a37f90d024"
 
     [[polyorigin2_datasets.download]]
-    sha256 = "4e42d23066e1b480d48872957af49f081ccb4551a1112521da648d1bda3ffeb6"
-    size = 7582426
-    url = "https://github.com/chaozhi/PolyOrigin.jl/releases/download/datasets-v2/polyorigin2_datasets.tar.gz"
+    sha256 = "aec13119e11b24db3f59dcc60451b05d679ef7bc97fa6616587a85ce53521732"
+    size = 7582341
+    url = "https://github.com/chaozhi/PolyOrigin.jl/releases/download/PolyOrigin2-datasets/polyorigin2_datasets.tar.gz"
