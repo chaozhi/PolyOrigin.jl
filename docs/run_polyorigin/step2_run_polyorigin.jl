@@ -25,7 +25,6 @@ trueorig = readtruegeno!(trueorigfile,joinedancestry)
 plotcondprob(joinedancestry;                 
     ismidparent = true, 
     individual = 4,        
-    dpi = 100,
     trueorig,
 )
 
@@ -35,5 +34,6 @@ acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
 
 
 # delete output files
-cd(@__DIR__)
-rm.(filter(x->occursin(outstem,x), readdir()))
+# cd(@__DIR__)
+# outstem = "sim_4x_out"
+# rm.(filter(x->!isdir(x) && occursin(outstem,x), readdir()))

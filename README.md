@@ -7,7 +7,7 @@ A package for haplotype reconstruction in multigenerational diploid and polyploi
 
 - Apply to multi-generation pedigrees, including connected F1 populations
 - Apply to SNP array and GBS data
-- Account for preferential chromosome pairing and quadrivalent formation in polyploid
+- Account for preferential pairing and quadrivalent formation in polyploid
 - Account for allelic bias and overdispersion in GBS data
 
 ## Installation

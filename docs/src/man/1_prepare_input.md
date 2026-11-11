@@ -2,7 +2,7 @@
 
 PolyOrigin requires two input files: genofile and pedfile. 
 
-## Input genofile
+### Input genofile
 
 The genofile should be in VCF format with extension ".vcf" or ".vcf.gz". A vcf file contains the physical map in the first three columns: #CHROM, POS, ID. A genetic map can be provided by adding keywords `PHYSCHROM` and `PHYSPOSBP` in the INFO column. Here is an exmaple of info field: "PHYSCHROM=1;PHYSPOSBP=1000". 
 
@@ -13,7 +13,7 @@ To be compatible with the previous versions, The genofile may also be in CSV for
 
 The position is parsed as physical map position in bp if option isphysmap = true, and otherwise it is parsed as genetic postion in cM. 
 
-## Input pedfile
+### Input pedfile
 
 The pedfile must be in CSV format with extension ".csv".   
 

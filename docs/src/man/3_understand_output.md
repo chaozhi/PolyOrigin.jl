@@ -1,6 +1,6 @@
 # Understand output
 
-## Overview
+### Overview
 
 ![](PolyOrigin_pipeline.png)
 
@@ -16,7 +16,7 @@ PolyOrigin produces in total 8 files
 
 In the following, we will describe polyancestry file and joinedancestry file, each of which contains a collection of dataframes. 
 
-## polyacnestry file
+### polyacnestry file
 
 The output `polyancestryfile` is a CSV file containing a list of dataframes:
 
@@ -34,7 +34,7 @@ The output `polyancestryfile` is a CSV file containing a list of dataframes:
 
 In polyancestryfile, the possible origin-genotypes of an offspring (or an intermediator) are defined in terms of the parental origins of its immediate parents. The parental origins of the 1st parent (mother) are denoted by 1, 2,..., $k_1$ for the $k_1$ homologs of the parent. If the offspring is not self-fertilized,  the parental origins of the 2nd parent (father) are denoted by $k_1$+1, $k_1+2$, ..., $k_1+k_2$ for the $k_2$ homologs of the parent. Thus, the definitions of `phasestate` and `unphasestate` are family-specific. 
 
-## joinedacnestry file
+### joinedacnestry file
 
 The output `joinedancestryfile` is a CSV file containing a list of dataframes:
 

@@ -1,13 +1,13 @@
 # Get started
 
-## Installation
+### Installation
 From the julia (>v1.12.0, 64-bit) REPL model, type `]` to enter the Pkg REPL mode and run
 
 ```pkg
 add https://github.com/chaozhi/PolyOrigin.jl
 ```
 
-## Usage
+### Usage
 To use ```PolyOrigin.jl``` in your project,
 
 ```julia
