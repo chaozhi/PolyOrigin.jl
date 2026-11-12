@@ -1,9 +1,10 @@
 # deps/build.jl
-const BIN_DIR = joinpath(homedir(), ".julia", "bin")
+depot = isempty(DEPOT_PATH) ? joinpath(homedir(), ".julia") : first(DEPOT_PATH)
+BIN_DIR = joinpath(depot, "bin")
 mkpath(BIN_DIR)
 
 # The name of the executable command you want the user to type
-const EXE_NAME = "polyorigin" 
+const EXE_NAME = "polyorigin"
 const EXE_PATH = joinpath(BIN_DIR, EXE_NAME)
 
 # Path to the actual script inside the installed package
@@ -22,4 +23,25 @@ else
         write(f, "#!/bin/sh\nexec julia --project=@. \"$SCRIPT_PATH\" \"\$@\"")
     end
     chmod(EXE_PATH, 0o755) # Make it executable
+end
+
+# test if BIN_DIR is in PATH
+path_dirs = split(get(ENV, "PATH", ""), Sys.iswindows() ? ';' : ':')
+
+# Normalize paths (handles trailing slashes and Windows drive letter casing)
+norm_bin = normpath(BIN_DIR)
+in_path = any(p -> !isempty(p) && normpath(p) == norm_bin, path_dirs)
+
+if !in_path
+    @warn """
+    $(BIN_DIR) is not on your system PATH.
+    To run $EXE_NAME from anywhere in your terminal, add it to your PATH:
+    """
+    if Sys.iswindows()
+        println("  PowerShell (run once to persist):")
+        println("  [Environment]::SetEnvironmentVariable('Path', \$env:Path + ';$(BIN_DIR)', 'User')")
+    else
+        println("  Add this line to your ~/.bashrc or ~/.zshrc:")
+        println("  export PATH=\"$(BIN_DIR):\$PATH\"")
+    end
 end
