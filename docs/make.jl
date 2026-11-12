@@ -14,6 +14,8 @@ end
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
 isdir(joinpath(@__DIR__,"build")) && error("delete old build!")
 
+@info readdir(joinpath(@__DIR__,"src", "man"))
+
 makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
@@ -28,7 +30,8 @@ makedocs(
     checkdocs = :none, 
     # draft = true, 
     pages = [
-        "Home" => "index.md", "Manual" => Any[
+        "Home" => "index.md", 
+        "Manual" => Any[
             "0 Get started" => "man/0_get_started.md",
             "1 Prepare input" => "man/1_prepare_input.md",
             "2 Run polyorigin in Julia" => "man/2_run_polyorigin.md",
