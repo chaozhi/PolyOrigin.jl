@@ -4,8 +4,7 @@ function tryusing(
 )
     try
         @eval using $(Symbol(pkgname))
-    catch
-        @eval using Pkg
+    catch        
         if isnothing(pkgurl)
             Pkg.add(pkgname)
         else
@@ -15,6 +14,7 @@ function tryusing(
     end
 end
 
+using Pkg
 tryusing("PolyOrigin", pkgurl = "https://github.com/chaozhi/PolyOrigin.jl")
 tryusing("ArgParse")
 tryusing("Distributed")
