@@ -14,8 +14,6 @@ end
 println("PolyOrigin_dir = ",pkgdir(PolyOrigin))
 isdir(joinpath(@__DIR__,"build")) && error("delete old build!")
 
-@info readdir(joinpath(@__DIR__,"src", "man"))
-
 makedocs(
     modules=[PolyOrigin],
     authors="Chaozhi Zheng",    
@@ -48,5 +46,6 @@ makedocs(
 
 deploydocs(;
     repo="github.com/chaozhi/PolyOrigin.jl.git",
-    devbranch = "v2dev",
+    # devbranch = "v2dev",
+    devbranch = "main",
 )
