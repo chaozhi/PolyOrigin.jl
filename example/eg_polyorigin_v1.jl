@@ -18,16 +18,7 @@ pedfile = outstem*"_ped.csv"
 phasedgeno, polyancestry, joinedancestry = polyorigin(genofile,pedfile;     
     refhapfile = truegenofile, 
     trueorigfile,        
-    # maxrun = 3,     
-    # chrpairing_phase = 22,
-    # isrefine = false, 
-    # isparentdoseerror = false, 
-    # doseerror = ErrorSetting(name="doseerror",init=1e-2),
-    # phaseerror_midparent = 0.01,
     samplesize = 10,        
-    # ismarkerspecific = true, 
-    # isparallel = false, 
-    # byneighbor = true, 
     outstem = outstem*"_out",
     outext = ".vcf"
 );
@@ -38,8 +29,6 @@ phasedgeno, polyancestry, joinedancestry = polyorigin(genofile,pedfile;
 @time acc = calaccuracy!(truegenofile,trueorigfile, joinedancestry)
 acc
 
-
-# exportall(PolyOrigin)
 # trueorig = readtruegeno!(trueorigfile,joinedancestry);
 # plotcondprob(joinedancestry; offspring=2,trueorig)
 

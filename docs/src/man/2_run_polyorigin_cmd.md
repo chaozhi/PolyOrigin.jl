@@ -8,7 +8,7 @@ First change into a working directory where genofile and pedfile are.  Then run 
 ```
 where the caret(`^`) is a multi-line character for Windows CMD, and the backslash (`\`) should be used instead for Linux/macOS shells. 
 
-By default, `polyorigin` analyzes all chromosomes (only one chromosome was simulted).  Here parallel computation launches workers; by default, 3 phasing runs for each chromosome. If `nworker` == 1, non-parallel computation. 
+By default, `polyorigin` analyzes all chromosomes (only one chromosome was simulated).  Here parallel computation launches workers; by default, 3 phasing runs for each chromosome. If `nworker` == 1, non-parallel computation. 
 
 
 For help, run

@@ -39,17 +39,3 @@ polyoriginsim(fhaplofile,pedfile;
     # outext = ".csv", 
     outstem
 )
-
-
-
-# using Plots
-# d = LogNormal(0,0.5)
-# plot(x->pdf(d,x); xrange=(0,10))
-# quantile(d, [0.005,0.025,0.25,0.5,0.75,0.975, 0.995])
-# cdf(d,2) - cdf(d,0.5)
-# cdf(d,10) - cdf(d,0.1)
-
-# cdf(d,2.664) - cdf(d,0.375)
-# cdf(d,3.625) - cdf(d,0.276)
-
-

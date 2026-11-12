@@ -3,13 +3,11 @@
 # @info string("nprocs=", nprocs())
 # @everywhere  using PolyOrigin
 
-using Revise
 using PolyOrigin
 cd(@__DIR__)
 pwd()
 exportall(PolyOrigin)
 
-using Revise
 outstem = "outstem_2x"
 truegenofile = outstem*"_truegeno.vcf.gz"
 trueorigfile = outstem*"_trueorig.vcf.gz"
@@ -19,9 +17,6 @@ pedfile = outstem*"_ped.csv"
 @time polygeno = formpolygeno(genofile, pedfile; 
     isphysmap = true,     
 );
-
-polygeno.offspringgeno[1]
-polygeno.parentgeno[1]
 
 
 @time polyphase!(polygeno; 
