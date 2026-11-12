@@ -8,7 +8,12 @@ A package for haplotype reconstruction in multigenerational diploid and polyploi
 - Apply to multi-generation pedigrees, including connected F1 populations
 - Apply to SNP array and GBS data
 - Account for preferential pairing and quadrivalent formation in polyploid
-- Account for allelic bias and overdispersion in GBS data
+- Account for allelic bias and over-dispersion in GBS data
+
+## Documentation
+
+- [Stable Documentation](https://chaozhi.github.io/PolyOrigin.jl/stable/)
+- [Development Documentation](https://chaozhi.github.io/PolyOrigin.jl/dev/)
 
 ## Installation
 
@@ -71,7 +76,7 @@ Output file | Description
 `outstem_chrpairing.csv` | summary of the inference results on chromosomal pairing. 
 
 
-## Citing PolyOrigin
+## Citing PolyOrigin2
 
  If you use PolyOrigin2 in your analyses and publish your results, please cite the article:
 
