@@ -34,8 +34,8 @@ makedocs(
         "Manual" => Any[
             "0 Get started" => "man/0_get_started.md",
             "1 Prepare input" => "man/1_prepare_input.md",
-            "2 Run polyorigin in Julia" => "man/2_run_polyorigin.md",
-            "2* Run polyorigin in cmd" => "man/2_run_polyorigin_cmd.md",
+            "2 Run polyorigin in Julia" => "man/2-1_run_polyorigin.md",
+            "2* Run polyorigin in cmd" => "man/2-2_run_polyorigin_cmd.md",
             "3 Understand output" => "man/3_understand_output.md",
             "4 Examples" => "man/4_examples.md",                
         ],
