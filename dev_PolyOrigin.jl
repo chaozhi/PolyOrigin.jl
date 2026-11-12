@@ -9,7 +9,8 @@ function dev_pkg(pkg::AbstractString; path::AbstractString = abspath(@__DIR__))
         else
             @info "Package '$pkg' is already removed or not found."
         end    
-        Pkg.develop(Pkg.PackageSpec(name=pkg, path=path))
+        Pkg.develop(Pkg.PackageSpec(name=pkg, path=path))        
+        Pkg.build(Pkg.PackageSpec(name=pkg))
         Pkg.activate()
         Pkg.instantiate() 
         Pkg.gc()

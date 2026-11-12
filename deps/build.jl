@@ -32,16 +32,32 @@ path_dirs = split(get(ENV, "PATH", ""), Sys.iswindows() ? ';' : ':')
 norm_bin = normpath(BIN_DIR)
 in_path = any(p -> !isempty(p) && normpath(p) == norm_bin, path_dirs)
 
-if !in_path
-    @warn """
-    $(BIN_DIR) is not on your system PATH.
-    To run $EXE_NAME from anywhere in your terminal, add it to your PATH:
-    """
-    if Sys.iswindows()
-        println("  PowerShell (run once to persist):")
-        println("  [Environment]::SetEnvironmentVariable('Path', \$env:Path + ';$(BIN_DIR)', 'User')")
+if !in_path 
+    msg = if Sys.iswindows() 
+        """
+        $(BIN_DIR) is not in your PATH.
+        To run $EXE_NAME from anywhere in your terminal, add it to your PATH permanently:
+            [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$(BIN_DIR)', 'User')            
+        """
     else
-        println("  Add this line to your ~/.bashrc or ~/.zshrc:")
-        println("  export PATH=\"$(BIN_DIR):\$PATH\"")
+        """
+        $(BIN_DIR) is not in your PATH.
+        To run 'mypkg' from anywhere, add this line to your ~/.bashrc or ~/.zshrc:
+          export PATH="$(BIN_DIR):\$PATH"
+        """
+    end
+
+    # 1. Write to build.log
+    @warn msg
+
+    # 2. Force print directly to the user's terminal
+    tty = Sys.iswindows() ? "CON" : "/dev/tty"
+    try
+        open(tty, "w") do io
+            printstyled(io, "Warning: ", color=:yellow, bold=true)
+            println(io, msg)
+        end
+    catch        
+        # Ignore in headless environments (CI/Docker)
     end
 end
