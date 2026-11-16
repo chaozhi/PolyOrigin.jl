@@ -15,15 +15,12 @@ function tryusing(
 end
 
 using Pkg
-tryusing("PolyOrigin", pkgurl = "https://github.com/chaozhi/PolyOrigin.jl")
 tryusing("ArgParse")
 tryusing("Distributed")
 
 function parse_commandline()
     s = ArgParseSettings(
         prog = "polyorigin",
-        version = string(pkgversion(PolyOrigin)), 
-        add_version = false
     )
     s.description = "Haplotype reconstruction in multigenerational diploid or polypoid pedigrees"   
     workdir = pwd() 
@@ -165,9 +162,6 @@ function parse_commandline()
         help = "if true, print messages on console"
         arg_type = Bool
         default = true
-        "--version"
-        action = :show_version
-        help = "show PolyOrigin's version and exit"
     end
     return parse_args(s, as_symbols = true)
 end
@@ -179,7 +173,12 @@ function string2vec(strvec::String, t::DataType)
 end
 
 function main(args::Vector{String})
+    # Parse flags FIRST (exits immediately on -h / --help or invalid args)
     parsed_args = parse_commandline()
+
+    # Load ONLY when valid arguments are provided
+    tryusing("PolyOrigin", pkgurl = "https://github.com/chaozhi/PolyOrigin.jl")
+
     verbose = parsed_args[:verbose]
     isrefineorder = parsed_args[:isrefineorder]
     if verbose
