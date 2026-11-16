@@ -24,9 +24,17 @@ julia>]add https://github.com/chaozhi/PolyOrigin.jl
 ```
 where `]` enters Pkg REPL mode.
 
+
 The above installation will also build PolyOrigin, which might result in a warning message like: 
 
     To run polyorigin from anywhere in your terminal, add ~/.julia/bin to your PATH
+
+> [!NOTE]
+> For using the previous version 1 (PolyOrigin1), run  
+> ```
+> julia>]add https://github.com/chaozhi/PolyOrigin.jl#v1legacy
+> ```
+> The command line interface is available at https://github.com/chaozhi/PolyOriginCmd
 
 ## Usage
 

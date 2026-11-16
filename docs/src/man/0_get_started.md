@@ -12,7 +12,7 @@ The installation will also build PolyOrigin, which might result in a warning mes
 
     To run polyorigin from anywhere in your terminal, add ~/.julia/bin to your PATH
 
-### Usage
+### Usage in Julia
 
 To use `PolyOrigin` in your project,
 
@@ -28,8 +28,8 @@ nprocs() < n && addprocs(n-nprocs())
 addprocs(n)
 @everywhere using PolyOrigin
 ```
-See `addprocs` for launching processes via the specified cluster manager or on remote
-machines via SSH.
+
+### Usage in CLI
 
 To use PolyOrigin CLI from a terminal, directly run the following command line
 ```
